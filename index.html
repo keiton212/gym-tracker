@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ジムトレーニング記録アプリ">
+    <meta name="theme-color" content="#1f2937">
+    <title>GymTracker - トレーニング記録</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231f2937' width='192' height='192'/><text x='50%' y='50%' font-size='120' fill='white' text-anchor='middle' dominant-baseline='middle' font-weight='bold'>💪</text></svg>">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- ホーム画面 -->
+    <div id="homeScreen" class="screen active">
+        <div class="home-content">
+            <div class="header">
+                <h1>GymTracker</h1>
+                <div class="header-actions">
+                    <button id="settingsBtn" class="btn-icon">⚙️</button>
+                </div>
+            </div>
+
+            <div class="weather-card">
+                <div class="weather-current">
+                    <div id="weatherTemp" class="weather-temp">--°C</div>
+                    <div id="weatherIcon" class="weather-icon">🌤️</div>
+                </div>
+                <div id="dailyForecast" class="daily-forecast"></div>
+            </div>
+
+            <button id="startBtn" class="btn-primary btn-large">トレーニング開始</button>
+
+            <div class="action-buttons">
+                <button id="menuBtn" class="btn-secondary">メニュー管理</button>
+                <button id="historyBtn" class="btn-secondary">過去データ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- トレーニング画面 -->
+    <div id="trainingScreen" class="screen">
+        <div class="training-header">
+            <button class="btn-back">← 戻る</button>
+            <h2 id="trainingDayLabel">月曜日 - 胸メイン</h2>
+            <button onclick="location.reload()" class="btn-icon" style="margin-left: auto;">🔄</button>
+        </div>
+        <div id="debugInfo" style="font-size: 12px; color: red; padding: 10px; display: none;"></div>
+
+        <div class="timer-card">
+            <div class="timer-display">
+                <span id="timerValue">70:00</span>
+            </div>
+            <div class="timer-controls">
+                <button id="timerStartBtn" class="btn-secondary">開始</button>
+                <button id="timerPauseBtn" class="btn-secondary" style="display:none;">一時停止</button>
+                <button id="timerResetBtn" class="btn-secondary">リセット</button>
+            </div>
+        </div>
+
+        <div class="recording-section">
+            <h3>記録</h3>
+            <div id="exerciseList" class="exercise-list">
+                <!-- 種目ごとの記録フォームが動的に挿入される -->
+            </div>
+        </div>
+
+        <button id="finishTrainingBtn" class="btn-primary">トレーニング終了</button>
+    </div>
+
+    <!-- メニュー管理画面 -->
+    <div id="menuScreen" class="screen">
+        <div class="screen-header">
+            <button class="btn-back">← 戻る</button>
+            <h2>メニュー管理</h2>
+            <button onclick="location.reload()" class="btn-icon" style="margin-left: auto;">🔄</button>
+        </div>
+
+        <div class="menu-management">
+            <div class="tabs">
+                <button class="tab-btn active" data-day="0">日</button>
+                <button class="tab-btn" data-day="1">月</button>
+                <button class="tab-btn" data-day="2">火</button>
+                <button class="tab-btn" data-day="3">水</button>
+                <button class="tab-btn" data-day="4">木</button>
+                <button class="tab-btn" data-day="5">金</button>
+                <button class="tab-btn" data-day="6">土</button>
+            </div>
+
+            <div id="exerciseEditorContainer" class="exercise-editor">
+                <!-- 各曜日の種目編集フォームが動的に挿入される -->
+            </div>
+
+            <button id="addExerciseBtn" class="btn-primary">種目を追加</button>
+        </div>
+    </div>
+
+    <!-- 設定画面 -->
+    <div id="settingsScreen" class="screen">
+        <div class="screen-header">
+            <button class="btn-back">← 戻る</button>
+            <h2>設定</h2>
+            <button onclick="location.reload()" class="btn-icon" style="margin-left: auto;">🔄</button>
+        </div>
+
+        <div class="settings-content">
+            <h3>トレーニング時間</h3>
+            <div id="timerSettingsContainer" class="settings-list">
+                <!-- 各曜日のタイマー時間設定が動的に挿入される -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 過去データ画面 -->
+    <div id="historyScreen" class="screen">
+        <div class="screen-header">
+            <button class="btn-back">← 戻る</button>
+            <h2>過去データ</h2>
+            <button onclick="location.reload()" class="btn-icon" style="margin-left: auto;">🔄</button>
+        </div>
+
+        <div class="history-content">
+            <div class="chart-container">
+                <canvas id="volumeChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/storage.js"></script>
+    <script src="js/weather.js"></script>
+    <script src="js/timer.js"></script>
+    <script src="js/menu.js"></script>
+    <script src="js/bodymap.js"></script>
+    <script src="js/graph.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
