@@ -212,6 +212,24 @@ button, input {
     min-height: 44px;
 }
 
+.btn-back-float {
+    position: fixed;
+    left: 16px;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    z-index: 60;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: white;
+    border: 1px solid #d1d5db;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
 .action-buttons {
     display: flex;
     gap: 10px;

@@ -1,4 +1,4 @@
-function buildNormalSetInputsHTML(dayIndex, exercise) {
+function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
     const lastRecord = storage.getLastRecordForSameDay(exercise.name, dayIndex);
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const lastIsPerSetWeight = lastRecord?.perSetWeight;
@@ -10,6 +10,7 @@ function buildNormalSetInputsHTML(dayIndex, exercise) {
             const rawReps = lastIsPerSetWeight ? entry?.reps : entry;
             if (rawReps !== undefined && rawReps !== '') lastReps = parseInt(rawReps);
         }
+        const liveReps = liveValues?.sets?.[i]?.reps ?? '';
         const placeholder = lastReps !== null && !isNaN(lastReps) ? `${lastReps}` : '回数';
         const sameBtn = lastReps !== null && !isNaN(lastReps)
             ? `<button type="button" class="btn-same" data-set="${i}">同</button>`
@@ -17,7 +18,7 @@ function buildNormalSetInputsHTML(dayIndex, exercise) {
         return `
             <div class="set-input-row">
                 <label>セット${i + 1}</label>
-                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${lastReps ?? ''}" placeholder="${placeholder}" min="0" inputmode="numeric">
+                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${lastReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${placeholder}" min="0" inputmode="numeric">
                 <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
                 <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
                 ${sameBtn}
@@ -27,7 +28,7 @@ function buildNormalSetInputsHTML(dayIndex, exercise) {
     }).join('');
 }
 
-function buildPerSetWeightInputsHTML(dayIndex, exercise) {
+function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
     const lastRecord = storage.getLastRecordForSameDay(exercise.name, dayIndex);
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const lastIsPerSetWeight = lastRecord?.perSetWeight;
@@ -42,6 +43,8 @@ function buildPerSetWeightInputsHTML(dayIndex, exercise) {
                 if (entry.reps !== undefined && entry.reps !== '') lastReps = parseInt(entry.reps);
             }
         }
+        const liveWeight = liveValues?.sets?.[i]?.weight ?? '';
+        const liveReps = liveValues?.sets?.[i]?.reps ?? '';
         const repsPlaceholder = lastReps !== null && !isNaN(lastReps) ? `${lastReps}` : '回数';
         const weightPlaceholder = lastWeight !== '' ? `${lastWeight}` : 'kg';
         const sameBtn = (lastReps !== null || lastWeight !== '')
@@ -50,9 +53,9 @@ function buildPerSetWeightInputsHTML(dayIndex, exercise) {
         return `
             <div class="set-input-row set-input-row-weighted">
                 <label>セット${i + 1}</label>
-                <input type="number" class="set-weight-input" data-set="${i}" data-last-weight="${lastWeight}" placeholder="${weightPlaceholder}" min="0" inputmode="decimal">
+                <input type="number" class="set-weight-input" data-set="${i}" data-last-weight="${lastWeight}" value="${escapeAttr(liveWeight)}" placeholder="${weightPlaceholder}" min="0" inputmode="decimal">
                 <span class="set-weight-unit">×</span>
-                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${lastReps ?? ''}" placeholder="${repsPlaceholder}" min="0" inputmode="numeric">
+                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${lastReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${repsPlaceholder}" min="0" inputmode="numeric">
                 <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
                 <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
                 ${sameBtn}
@@ -62,7 +65,7 @@ function buildPerSetWeightInputsHTML(dayIndex, exercise) {
     }).join('');
 }
 
-function buildExerciseBodyHTML(dayIndex, exercise) {
+function buildExerciseBodyHTML(dayIndex, exercise, liveValues) {
     if (exercise.perSetWeight) {
         return `
             <div class="exercise-record-info">
@@ -72,17 +75,18 @@ function buildExerciseBodyHTML(dayIndex, exercise) {
                 <input type="checkbox" class="per-set-weight-checkbox" checked> セットごとに重量を変える
             </label>
             <div class="set-inputs">
-                ${buildPerSetWeightInputsHTML(dayIndex, exercise)}
+                ${buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues)}
             </div>
         `;
     }
 
     const step = exercise.weightStep ?? 2.5;
+    const weightValue = liveValues?.sharedWeight ?? exercise.weight;
     return `
         <div class="exercise-record-info">
             <div>重量:
                 <button type="button" class="btn-weight-step" data-delta="-${step}" aria-label="重量を減らす">−</button>
-                <input type="number" class="weight-input" value="${escapeAttr(exercise.weight)}" min="0" inputmode="decimal">
+                <input type="number" class="weight-input" value="${escapeAttr(weightValue)}" min="0" inputmode="decimal">
                 <button type="button" class="btn-weight-step" data-delta="${step}" aria-label="重量を増やす">＋</button>
             kg</div>
             <div>セット数: <input type="number" class="sets-input" value="${escapeAttr(exercise.sets)}" min="1" max="10" inputmode="numeric"></div>
@@ -91,7 +95,7 @@ function buildExerciseBodyHTML(dayIndex, exercise) {
             <input type="checkbox" class="per-set-weight-checkbox"> セットごとに重量を変える
         </label>
         <div class="set-inputs">
-            ${buildNormalSetInputsHTML(dayIndex, exercise)}
+            ${buildNormalSetInputsHTML(dayIndex, exercise, liveValues)}
         </div>
     `;
 }
@@ -441,8 +445,34 @@ class GymApp {
         if (!exercise) return;
 
         const bodyEl = cardEl.querySelector('.exercise-body');
-        bodyEl.innerHTML = buildExerciseBodyHTML(dayIndex, exercise);
+        const liveValues = this.captureLiveSetValues(bodyEl);
+        bodyEl.innerHTML = buildExerciseBodyHTML(dayIndex, exercise, liveValues);
         this.attachBodyListeners(dayIndex, cardEl, nameInput);
+    }
+
+    // 現在入力中の重量・回数を、切り替え後の画面にそのまま引き継ぐために取得する
+    captureLiveSetValues(bodyEl) {
+        const wasPerSetWeight = !!bodyEl.querySelector('.set-input-row-weighted');
+        const rows = bodyEl.querySelectorAll('.set-input-row');
+        const sets = [];
+        let sharedWeight = '';
+
+        if (wasPerSetWeight) {
+            rows.forEach(row => {
+                const weight = row.querySelector('.set-weight-input')?.value || '';
+                const reps = row.querySelector('.reps-input')?.value || '';
+                sets.push({ weight, reps });
+                if (weight !== '') sharedWeight = weight;
+            });
+        } else {
+            sharedWeight = bodyEl.querySelector('.weight-input')?.value || '';
+            rows.forEach(row => {
+                const reps = row.querySelector('.reps-input')?.value || '';
+                sets.push({ weight: sharedWeight, reps });
+            });
+        }
+
+        return { sharedWeight, sets };
     }
 
     attachSetInputListeners(container) {
