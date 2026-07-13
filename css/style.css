@@ -160,6 +160,40 @@ button, input {
     line-height: 1.7;
 }
 
+.backup-reminder {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: rgba(255, 200, 80, 0.18);
+    border: 1px solid rgba(255, 200, 80, 0.5);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #fff;
+}
+
+.backup-reminder:empty {
+    display: none;
+    margin-bottom: 0;
+    padding: 0;
+    border: none;
+}
+
+.btn-backup-now {
+    background: white;
+    color: #92610a;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
 .milestone-card {
     text-align: center;
     margin-top: 15px;

@@ -234,6 +234,30 @@ class GymApp {
         weather.updateWeatherDisplay();
         this.displayDailyTip();
         this.displayMilestoneCard();
+        this.displayBackupReminder();
+    }
+
+    displayBackupReminder() {
+        const el = document.getElementById('backupReminderCard');
+        if (!el) return;
+
+        const lastExportAt = storage.getLastExportAt();
+        const daysSinceExport = lastExportAt ? (Date.now() - lastExportAt) / 86400000 : Infinity;
+
+        if (daysSinceExport < 7) {
+            el.innerHTML = '';
+            return;
+        }
+
+        const message = lastExportAt
+            ? 'しばらくバックアップを書き出していません'
+            : 'まだバックアップを書き出していません';
+
+        el.innerHTML = `
+            <span>${message}</span>
+            <button id="backupNowBtn" type="button" class="btn-backup-now">今すぐバックアップ</button>
+        `;
+        document.getElementById('backupNowBtn')?.addEventListener('click', () => this.exportData());
     }
 
     displayMilestoneCard() {
@@ -696,6 +720,9 @@ class GymApp {
         const json = JSON.stringify(data, null, 2);
         const fileName = `gym-tracker-backup-${new Date().toISOString().slice(0, 10)}.json`;
         const blob = new Blob([json], { type: 'application/json' });
+
+        storage.setLastExportAt(Date.now());
+        this.displayBackupReminder();
 
         if (navigator.canShare) {
             const file = new File([blob], fileName, { type: 'application/json' });

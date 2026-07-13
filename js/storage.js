@@ -1,7 +1,8 @@
 const STORAGE_KEYS = {
     MENU: 'gym_menu',
     RECORDS: 'gym_records',
-    TIMER_SETTINGS: 'gym_timer_settings'
+    TIMER_SETTINGS: 'gym_timer_settings',
+    LAST_EXPORT_AT: 'gym_last_export_at'
 };
 
 const DEFAULT_TIMER_SETTINGS = {
@@ -244,6 +245,16 @@ class Storage {
         const settings = this.getTimerSettings();
         settings[dayIndex] = minutes;
         this.setTimerSettings(settings);
+    }
+
+    // バックアップ書き出し日時の記録
+    getLastExportAt() {
+        const raw = localStorage.getItem(STORAGE_KEYS.LAST_EXPORT_AT);
+        return raw ? parseInt(raw) : null;
+    }
+
+    setLastExportAt(timestamp) {
+        localStorage.setItem(STORAGE_KEYS.LAST_EXPORT_AT, String(timestamp));
     }
 }
 
