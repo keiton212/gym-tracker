@@ -127,6 +127,7 @@ class Storage {
             repsRange: '',
             restMinutes: 2,
             perSetWeight: false,
+            weightStep: 2.5,
             ...exercise
         });
         this.setMenu(menu);

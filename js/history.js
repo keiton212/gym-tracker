@@ -45,16 +45,17 @@ class History {
                 const data = session.exercises[name];
 
                 if (data.perSetWeight) {
-                    const parts = (data.sets || [])
+                    const subRows = (data.sets || [])
                         .filter(s => s && (s.weight !== '' || s.reps !== ''))
-                        .map(s => `${s.reps || '-'}回(${s.weight || '-'}kg)`)
-                        .join(', ');
+                        .map(s => `
+                            <div class="history-exercise-subrow">
+                                <span class="history-exercise-weight">${s.weight || '-'}kg</span>
+                                <span class="history-exercise-reps">${s.reps || '-'}回</span>
+                            </div>
+                        `).join('');
                     return `
-                        <div class="history-exercise-row">
-                            <span class="history-exercise-name">${name}</span>
-                            <span class="history-exercise-weight">セット別</span>
-                            <span class="history-exercise-reps">${parts || '-'}</span>
-                        </div>
+                        <div class="history-exercise-name">${name}</div>
+                        ${subRows}
                     `;
                 }
 

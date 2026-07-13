@@ -75,12 +75,13 @@ function buildExerciseBodyHTML(dayIndex, exercise) {
         `;
     }
 
+    const step = exercise.weightStep ?? 2.5;
     return `
         <div class="exercise-record-info">
             <div>重量:
-                <button type="button" class="btn-weight-step" data-delta="-2.5" aria-label="重量を減らす">−</button>
+                <button type="button" class="btn-weight-step" data-delta="-${step}" aria-label="重量を減らす">−</button>
                 <input type="number" class="weight-input" value="${escapeAttr(exercise.weight)}" min="0" inputmode="decimal">
-                <button type="button" class="btn-weight-step" data-delta="2.5" aria-label="重量を増やす">＋</button>
+                <button type="button" class="btn-weight-step" data-delta="${step}" aria-label="重量を増やす">＋</button>
             kg</div>
             <div>セット数: <input type="number" class="sets-input" value="${escapeAttr(exercise.sets)}" min="1" max="10" inputmode="numeric"></div>
         </div>

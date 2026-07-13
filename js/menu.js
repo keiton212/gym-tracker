@@ -16,12 +16,20 @@ function buildMenuEditCardHTML(exercise, isFirst, isLast) {
             <div class="exercise-record-info">
                 ${exercise.perSetWeight ? '' : `
                 <div>重量:
-                    <button type="button" class="btn-weight-step" data-delta="-2.5" aria-label="重量を減らす">−</button>
+                    <button type="button" class="btn-weight-step" data-delta="-${exercise.weightStep ?? 2.5}" aria-label="重量を減らす">−</button>
                     <input type="number" class="weight-input" value="${escapeAttr(exercise.weight)}" min="0" inputmode="decimal">
-                    <button type="button" class="btn-weight-step" data-delta="2.5" aria-label="重量を増やす">＋</button>
+                    <button type="button" class="btn-weight-step" data-delta="${exercise.weightStep ?? 2.5}" aria-label="重量を増やす">＋</button>
                 kg</div>`}
                 <div>セット数: <input type="number" class="sets-input" value="${escapeAttr(exercise.sets)}" min="1" max="10" inputmode="numeric"></div>
             </div>
+            ${exercise.perSetWeight ? '' : `
+            <label class="weight-step-toggle">
+                刻み幅:
+                <select class="weight-step-select">
+                    <option value="1" ${(exercise.weightStep ?? 2.5) === 1 ? 'selected' : ''}>1kg</option>
+                    <option value="2.5" ${(exercise.weightStep ?? 2.5) === 2.5 ? 'selected' : ''}>2.5kg</option>
+                </select>
+            </label>`}
             <label class="per-set-weight-toggle">
                 <input type="checkbox" class="per-set-weight-checkbox" ${exercise.perSetWeight ? 'checked' : ''}> セットごとに重量を変える
             </label>
@@ -103,6 +111,14 @@ class MenuEditor {
                     weightInput.value = next;
                     storage.updateExercise(dayIndex, exerciseId, { weight: String(next) });
                 });
+            });
+        }
+
+        const weightStepSelect = cardEl.querySelector('.weight-step-select');
+        if (weightStepSelect) {
+            weightStepSelect.addEventListener('change', (e) => {
+                storage.updateExercise(dayIndex, exerciseId, { weightStep: parseFloat(e.target.value) });
+                this.renderExercises();
             });
         }
 
