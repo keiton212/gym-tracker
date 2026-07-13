@@ -32,6 +32,7 @@ function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
     const lastRecord = storage.getLastRecordForSameDay(exercise.name, dayIndex);
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const lastIsPerSetWeight = lastRecord?.perSetWeight;
+    const step = exercise.weightStep ?? 2.5;
 
     return Array.from({ length: setCount }, (_, i) => {
         let lastWeight = '';
@@ -53,8 +54,9 @@ function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
         return `
             <div class="set-input-row set-input-row-weighted">
                 <label>セット${i + 1}</label>
+                <button type="button" class="btn-weight-step-set" data-set="${i}" data-delta="-${step}" aria-label="重量を減らす">−</button>
                 <input type="number" class="set-weight-input" data-set="${i}" data-last-weight="${lastWeight}" value="${escapeAttr(liveWeight)}" placeholder="${weightPlaceholder}" min="0" inputmode="decimal">
-                <span class="set-weight-unit">×</span>
+                <button type="button" class="btn-weight-step-set" data-set="${i}" data-delta="${step}" aria-label="重量を増やす">＋</button>
                 <input type="number" class="reps-input" data-set="${i}" data-last-reps="${lastReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${repsPlaceholder}" min="0" inputmode="numeric">
                 <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
                 <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
@@ -491,6 +493,20 @@ class GymApp {
                 if (weightInput && weightInput.dataset.lastWeight) {
                     weightInput.value = weightInput.dataset.lastWeight;
                 }
+            });
+        });
+
+        container.querySelectorAll('.btn-weight-step-set').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const row = btn.closest('.set-input-row');
+                const weightInput = row.querySelector('.set-weight-input');
+                if (!weightInput) return;
+
+                const delta = parseFloat(btn.dataset.delta);
+                const current = parseFloat(weightInput.value) || 0;
+                const next = Math.max(0, Math.round((current + delta) * 100) / 100);
+
+                weightInput.value = next;
             });
         });
 

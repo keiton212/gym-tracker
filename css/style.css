@@ -428,7 +428,6 @@ button, input {
 }
 
 .rest-countdown {
-    flex: 1;
     font-size: 18px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;
@@ -499,6 +498,21 @@ button, input {
 }
 
 .btn-reps-step {
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    color: #667eea;
+    font-size: 14px;
+    font-weight: bold;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.btn-weight-step-set {
     background: white;
     border: 1px solid #d1d5db;
     border-radius: 4px;
