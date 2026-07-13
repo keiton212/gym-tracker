@@ -45,18 +45,14 @@ class History {
                 const data = session.exercises[name];
 
                 if (data.perSetWeight) {
-                    const subRows = (data.sets || [])
-                        .filter(s => s && (s.weight !== '' || s.reps !== ''))
-                        .map(s => `
-                            <div class="history-exercise-subrow">
-                                <span class="history-exercise-weight">${s.weight || '-'}kg</span>
-                                <span class="history-exercise-reps">${s.reps || '-'}回</span>
-                            </div>
-                        `).join('');
-                    return `
-                        <div class="history-exercise-name">${name}</div>
-                        ${subRows}
-                    `;
+                    const validSets = (data.sets || []).filter(s => s && (s.weight !== '' || s.reps !== ''));
+                    return validSets.map((s, idx) => `
+                        <div class="history-exercise-row">
+                            <span class="history-exercise-name">${idx === 0 ? name : ''}</span>
+                            <span class="history-exercise-weight">${s.weight || '-'}kg</span>
+                            <span class="history-exercise-reps">${s.reps || '-'}回</span>
+                        </div>
+                    `).join('');
                 }
 
                 const reps = (data.sets || []).filter(r => r !== undefined && r !== '').join(', ');

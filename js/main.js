@@ -17,7 +17,7 @@ function buildNormalSetInputsHTML(dayIndex, exercise) {
         return `
             <div class="set-input-row">
                 <label>セット${i + 1}</label>
-                <input type="number" data-set="${i}" data-last-reps="${lastReps ?? ''}" placeholder="${placeholder}" min="0" inputmode="numeric">
+                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${lastReps ?? ''}" placeholder="${placeholder}" min="0" inputmode="numeric">
                 <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
                 <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
                 ${sameBtn}
@@ -51,8 +51,10 @@ function buildPerSetWeightInputsHTML(dayIndex, exercise) {
             <div class="set-input-row set-input-row-weighted">
                 <label>セット${i + 1}</label>
                 <input type="number" class="set-weight-input" data-set="${i}" data-last-weight="${lastWeight}" placeholder="${weightPlaceholder}" min="0" inputmode="decimal">
-                <span class="set-weight-unit">kg ×</span>
-                <input type="number" data-set="${i}" data-last-reps="${lastReps ?? ''}" placeholder="${repsPlaceholder}" min="0" inputmode="numeric">
+                <span class="set-weight-unit">×</span>
+                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${lastReps ?? ''}" placeholder="${repsPlaceholder}" min="0" inputmode="numeric">
+                <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
+                <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
                 ${sameBtn}
                 <span class="reps-diff"></span>
             </div>
@@ -449,7 +451,7 @@ class GymApp {
         container.querySelectorAll('.btn-same').forEach(btn => {
             btn.addEventListener('click', () => {
                 const row = btn.closest('.set-input-row');
-                const repsInput = row.querySelector('input[data-set]');
+                const repsInput = row.querySelector('.reps-input');
                 const weightInput = row.querySelector('.set-weight-input');
 
                 if (repsInput && repsInput.dataset.lastReps) {
@@ -465,7 +467,7 @@ class GymApp {
         container.querySelectorAll('.btn-reps-step').forEach(btn => {
             btn.addEventListener('click', () => {
                 const row = btn.closest('.set-input-row');
-                const repsInput = row.querySelector('input[data-set]');
+                const repsInput = row.querySelector('.reps-input');
                 if (!repsInput) return;
 
                 const lastReps = repsInput.dataset.lastReps ? parseInt(repsInput.dataset.lastReps) : null;
@@ -478,7 +480,7 @@ class GymApp {
             });
         });
 
-        container.querySelectorAll('input[data-set]').forEach(input => {
+        container.querySelectorAll('.reps-input').forEach(input => {
             const lastReps = input.dataset.lastReps ? parseInt(input.dataset.lastReps) : null;
 
             input.addEventListener('input', (e) => {
@@ -542,7 +544,7 @@ class GymApp {
                 const sets = [];
                 rows.forEach(row => {
                     const weight = row.querySelector('.set-weight-input')?.value || '';
-                    const reps = row.querySelector('input[data-set]')?.value || '';
+                    const reps = row.querySelector('.reps-input')?.value || '';
                     if (weight !== '' || reps !== '') hasAnyInput = true;
                     sets.push({ weight, reps });
                 });
