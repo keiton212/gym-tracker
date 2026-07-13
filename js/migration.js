@@ -124,3 +124,36 @@
         console.error('Migration v3 failed:', e);
     }
 })();
+
+// 種目ごとの重量刻み幅（weightStep）をユーザー指定の値に更新する
+(function () {
+    const FLAG4 = 'gym_migration_weight_step_v4';
+    if (localStorage.getItem(FLAG4)) return;
+
+    try {
+        const menu = storage.getMenu();
+        const stepMap = {
+            'インクラインダンベルプレス': 1,
+            'ダンベルショルダープレス': 1,
+            'ダンベルサイドレイズ': 1,
+            'ショルダープレスマシン': 1.25,
+            'ショルダープレスマシン(ハンマーストレングス)': 1.25,
+            'アイソラテラルロー': 1.25,
+            'マシンサイド': 1.25
+        };
+
+        for (let day = 0; day < 7; day++) {
+            if (!menu[day] || !menu[day].exercises) continue;
+            menu[day].exercises.forEach(ex => {
+                if (stepMap[ex.name] !== undefined) {
+                    ex.weightStep = stepMap[ex.name];
+                }
+            });
+        }
+
+        storage.setMenu(menu);
+        localStorage.setItem(FLAG4, '1');
+    } catch (e) {
+        console.error('Migration v4 failed:', e);
+    }
+})();
