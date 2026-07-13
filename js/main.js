@@ -18,6 +18,8 @@ function buildNormalSetInputsHTML(dayIndex, exercise) {
             <div class="set-input-row">
                 <label>セット${i + 1}</label>
                 <input type="number" data-set="${i}" data-last-reps="${lastReps ?? ''}" placeholder="${placeholder}" min="0" inputmode="numeric">
+                <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
+                <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
                 ${sameBtn}
                 <span class="reps-diff"></span>
             </div>
@@ -173,33 +175,38 @@ class GymApp {
         const timerValueEl = document.getElementById('timerValue');
         if (!timerValueEl) return;
 
-        timerValueEl.addEventListener('click', () => {
-            if (timer.isRunning) return;
+        timerValueEl.setAttribute('contenteditable', 'true');
+        timerValueEl.setAttribute('inputmode', 'numeric');
 
-            const currentMinutes = Math.round(timer.duration / 60);
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.min = '5';
-            input.max = '180';
-            input.inputMode = 'numeric';
-            input.className = 'inline-time-edit';
-            input.value = currentMinutes;
-            timerValueEl.replaceWith(input);
-            input.focus();
-            input.select();
+        let lastMinutes = Math.round(timer.duration / 60);
 
-            const commit = () => {
-                const minutes = Math.max(5, Math.min(180, parseInt(input.value) || currentMinutes));
-                input.replaceWith(timerValueEl);
-                storage.setTimerForDay(this.currentDayIndex, minutes);
-                timer.setDuration(minutes);
-                document.getElementById('timerStartBtn').style.display = 'inline-block';
-                document.getElementById('timerPauseBtn').style.display = 'none';
-            };
-            input.addEventListener('blur', commit);
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') input.blur();
-            });
+        timerValueEl.addEventListener('focus', () => {
+            if (timer.isRunning) {
+                timerValueEl.blur();
+                return;
+            }
+            lastMinutes = Math.round(timer.duration / 60);
+            timerValueEl.textContent = lastMinutes;
+            selectElementText(timerValueEl);
+        });
+
+        timerValueEl.addEventListener('input', () => {
+            sanitizeNumericContentEditable(timerValueEl, false);
+        });
+
+        timerValueEl.addEventListener('blur', () => {
+            const minutes = Math.max(5, Math.min(180, parseInt(timerValueEl.textContent) || lastMinutes));
+            storage.setTimerForDay(this.currentDayIndex, minutes);
+            timer.setDuration(minutes);
+            document.getElementById('timerStartBtn').style.display = 'inline-block';
+            document.getElementById('timerPauseBtn').style.display = 'none';
+        });
+
+        timerValueEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                timerValueEl.blur();
+            }
         });
     }
 
@@ -333,33 +340,39 @@ class GymApp {
         });
 
         const restCountdownEl = cardEl.querySelector('.rest-countdown');
-        restCountdownEl.addEventListener('click', () => {
+        restCountdownEl.setAttribute('contenteditable', 'true');
+        restCountdownEl.setAttribute('inputmode', 'decimal');
+
+        let lastRestMinutes = this.restTimers[exerciseId] ? this.restTimers[exerciseId].duration / 60 : 2;
+
+        restCountdownEl.addEventListener('focus', () => {
             const rt = this.restTimers[exerciseId];
-            if (!rt || rt.isRunning) return;
+            if (!rt || rt.isRunning) {
+                restCountdownEl.blur();
+                return;
+            }
+            lastRestMinutes = rt.duration / 60;
+            restCountdownEl.textContent = lastRestMinutes;
+            selectElementText(restCountdownEl);
+        });
 
-            const currentMinutes = rt.duration / 60;
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.step = '0.5';
-            input.min = '0';
-            input.max = '30';
-            input.inputMode = 'decimal';
-            input.className = 'inline-time-edit inline-time-edit-small';
-            input.value = currentMinutes;
-            restCountdownEl.replaceWith(input);
-            input.focus();
-            input.select();
+        restCountdownEl.addEventListener('input', () => {
+            sanitizeNumericContentEditable(restCountdownEl, true);
+        });
 
-            const commit = () => {
-                const minutes = Math.max(0, Math.min(30, roundToHalf(parseFloat(input.value) || 0)));
-                input.replaceWith(restCountdownEl);
-                storage.updateExercise(dayIndex, exerciseId, { restMinutes: minutes });
-                rt.setMinutes(minutes);
-            };
-            input.addEventListener('blur', commit);
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') input.blur();
-            });
+        restCountdownEl.addEventListener('blur', () => {
+            const rt = this.restTimers[exerciseId];
+            if (!rt) return;
+            const minutes = Math.max(0, Math.min(30, roundToHalf(parseFloat(restCountdownEl.textContent) || lastRestMinutes)));
+            storage.updateExercise(dayIndex, exerciseId, { restMinutes: minutes });
+            rt.setMinutes(minutes);
+        });
+
+        restCountdownEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                restCountdownEl.blur();
+            }
         });
 
         cardEl.querySelector('.btn-reorder-up').addEventListener('click', () => {
@@ -445,6 +458,22 @@ class GymApp {
                 if (weightInput && weightInput.dataset.lastWeight) {
                     weightInput.value = weightInput.dataset.lastWeight;
                 }
+            });
+        });
+
+        container.querySelectorAll('.btn-reps-step').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const row = btn.closest('.set-input-row');
+                const repsInput = row.querySelector('input[data-set]');
+                if (!repsInput) return;
+
+                const lastReps = repsInput.dataset.lastReps ? parseInt(repsInput.dataset.lastReps) : null;
+                const current = repsInput.value !== '' ? parseInt(repsInput.value) : (lastReps ?? 0);
+                const delta = parseInt(btn.dataset.delta);
+                const next = Math.max(0, (isNaN(current) ? 0 : current) + delta);
+
+                repsInput.value = next;
+                repsInput.dispatchEvent(new Event('input', { bubbles: true }));
             });
         });
 

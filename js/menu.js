@@ -113,32 +113,33 @@ class MenuEditor {
         });
 
         const restEl = cardEl.querySelector('.rest-countdown');
-        restEl.addEventListener('click', () => {
-            const exercise = storage.getExercisesForDay(dayIndex).find(e => e.id === exerciseId);
-            const currentMinutes = exercise?.restMinutes ?? 2;
+        restEl.setAttribute('contenteditable', 'true');
+        restEl.setAttribute('inputmode', 'decimal');
 
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.step = '0.5';
-            input.min = '0';
-            input.max = '30';
-            input.inputMode = 'decimal';
-            input.className = 'inline-time-edit inline-time-edit-small';
-            input.value = currentMinutes;
-            restEl.replaceWith(input);
-            input.focus();
-            input.select();
+        let lastRestMinutes = storage.getExercisesForDay(dayIndex).find(e => e.id === exerciseId)?.restMinutes ?? 2;
 
-            const commit = () => {
-                const minutes = Math.max(0, Math.min(30, roundToHalf(parseFloat(input.value) || 0)));
-                input.replaceWith(restEl);
-                restEl.textContent = `${minutes}分`;
-                storage.updateExercise(dayIndex, exerciseId, { restMinutes: minutes });
-            };
-            input.addEventListener('blur', commit);
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') input.blur();
-            });
+        restEl.addEventListener('focus', () => {
+            const current = storage.getExercisesForDay(dayIndex).find(e => e.id === exerciseId);
+            lastRestMinutes = current?.restMinutes ?? 2;
+            restEl.textContent = lastRestMinutes;
+            selectElementText(restEl);
+        });
+
+        restEl.addEventListener('input', () => {
+            sanitizeNumericContentEditable(restEl, true);
+        });
+
+        restEl.addEventListener('blur', () => {
+            const minutes = Math.max(0, Math.min(30, roundToHalf(parseFloat(restEl.textContent) || lastRestMinutes)));
+            restEl.textContent = `${minutes}分`;
+            storage.updateExercise(dayIndex, exerciseId, { restMinutes: minutes });
+        });
+
+        restEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                restEl.blur();
+            }
         });
 
         cardEl.querySelector('.per-set-weight-checkbox').addEventListener('change', (e) => {
