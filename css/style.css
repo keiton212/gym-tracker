@@ -401,14 +401,15 @@ button, input {
 }
 
 .rest-timer-row {
+    position: relative;
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 10px;
     background: white;
     border-radius: 8px;
     padding: 10px;
     margin-bottom: 12px;
+    min-height: 48px;
     transition: background 0.2s;
 }
 
@@ -422,12 +423,17 @@ button, input {
 }
 
 .rest-toggle-btn {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
     padding: 8px 14px;
     font-size: 13px;
     min-height: 40px;
 }
 
 .rest-countdown {
+    margin-left: auto;
     font-size: 18px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;
