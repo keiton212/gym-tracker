@@ -28,6 +28,7 @@ function buildMenuEditCardHTML(exercise, isFirst, isLast) {
                 <select class="weight-step-select">
                     <option value="1" ${(exercise.weightStep ?? 2.5) === 1 ? 'selected' : ''}>1kg</option>
                     <option value="1.25" ${(exercise.weightStep ?? 2.5) === 1.25 ? 'selected' : ''}>1.25kg</option>
+                    <option value="2" ${(exercise.weightStep ?? 2.5) === 2 ? 'selected' : ''}>2kg</option>
                     <option value="2.5" ${(exercise.weightStep ?? 2.5) === 2.5 ? 'selected' : ''}>2.5kg</option>
                 </select>
             </label>`}

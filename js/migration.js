@@ -157,3 +157,32 @@
         console.error('Migration v4 failed:', e);
     }
 })();
+
+// ダンベル種目3つの重量刻み幅を2kgに更新する
+(function () {
+    const FLAG5 = 'gym_migration_weight_step_v5';
+    if (localStorage.getItem(FLAG5)) return;
+
+    try {
+        const menu = storage.getMenu();
+        const stepMap = {
+            'インクラインダンベルプレス': 2,
+            'ダンベルショルダープレス': 2,
+            'インクラインダンベルカール': 2
+        };
+
+        for (let day = 0; day < 7; day++) {
+            if (!menu[day] || !menu[day].exercises) continue;
+            menu[day].exercises.forEach(ex => {
+                if (stepMap[ex.name] !== undefined) {
+                    ex.weightStep = stepMap[ex.name];
+                }
+            });
+        }
+
+        storage.setMenu(menu);
+        localStorage.setItem(FLAG5, '1');
+    } catch (e) {
+        console.error('Migration v5 failed:', e);
+    }
+})();

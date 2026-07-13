@@ -18,7 +18,7 @@ const SEED_MENU = {
     0: { label: '日曜日', status: '休み', exercises: [] },
     1: { label: '月曜日', status: 'push（胸メイン）', exercises: [
         { id: '1', name: 'ベンチプレス', weight: '70', sets: '3', repsRange: '5-8', restMinutes: 3 },
-        { id: '2', name: 'インクラインダンベルプレス', weight: '28', sets: '3', repsRange: '6-10', restMinutes: 2, weightStep: 1 },
+        { id: '2', name: 'インクラインダンベルプレス', weight: '28', sets: '3', repsRange: '6-10', restMinutes: 2, weightStep: 2 },
         { id: '3', name: 'ディップス', weight: '9', sets: '3', repsRange: '8-12', restMinutes: 2 },
         { id: '4', name: 'ショルダープレスマシン', weight: '25', sets: '4', repsRange: '8-12', restMinutes: 2, weightStep: 1.25 },
         { id: '5', name: 'インクラインスミス', weight: '35', sets: '2', repsRange: '12-15', restMinutes: 1 },
@@ -46,12 +46,12 @@ const SEED_MENU = {
     ]},
     4: { label: '木曜日', status: '休み', exercises: [] },
     5: { label: '金曜日', status: 'push（肩メイン）', exercises: [
-        { id: '51', name: 'ダンベルショルダープレス', weight: '26', sets: '3', repsRange: '5-8', restMinutes: 3, weightStep: 1 },
+        { id: '51', name: 'ダンベルショルダープレス', weight: '26', sets: '3', repsRange: '5-8', restMinutes: 3, weightStep: 2 },
         { id: '52', name: 'ベンチプレス', weight: '67.5', sets: '2', repsRange: '6', restMinutes: 3 },
         { id: '53', name: 'マシンサイド', weight: '11', sets: '1', repsRange: '12-20', restMinutes: 1, weightStep: 1.25 },
         { id: '54', name: 'ダンベルサイドレイズ', weight: '10', sets: '3', repsRange: '12-20', restMinutes: 1, weightStep: 1 },
         { id: '55', name: 'ケーブルサイドレイズ', weight: '11', sets: '4', repsRange: '12-20', restMinutes: 1 },
-        { id: '56', name: 'インクラインダンベルプレス', weight: '-', sets: '3', repsRange: '8-12', restMinutes: 2 },
+        { id: '56', name: 'インクラインダンベルプレス', weight: '-', sets: '3', repsRange: '8-12', restMinutes: 2, weightStep: 2 },
         { id: '57', name: 'インクラインスミス', weight: '35', sets: '1', repsRange: '12-20', restMinutes: 1 },
         { id: '59', name: 'ライイングトライセプスエクステンション', weight: '-', sets: '3', repsRange: '8-12', restMinutes: 1 },
         { id: '60', name: 'ケーブルプレスダウン', weight: '-', sets: '2', repsRange: '10-15', restMinutes: 1 }
@@ -63,7 +63,7 @@ const SEED_MENU = {
         { id: '64', name: 'ラットプルダウン ミドルパラレル', weight: '68', sets: '2', repsRange: '8-12', restMinutes: 1 },
         { id: '65', name: 'プーリーロー', weight: '130', sets: '3', repsRange: '8-12', restMinutes: 1 },
         { id: '66', name: 'ストレートアームプルダウン', weight: '-', sets: '2', repsRange: '12-20', restMinutes: 1 },
-        { id: '67', name: 'インクラインダンベルカール', weight: '-', sets: '3', repsRange: '8-12', restMinutes: 1 },
+        { id: '67', name: 'インクラインダンベルカール', weight: '-', sets: '3', repsRange: '8-12', restMinutes: 1, weightStep: 2 },
         { id: '68', name: 'ハンマーカール', weight: '-', sets: '2', repsRange: '10-15', restMinutes: 1 }
     ]}
 };
