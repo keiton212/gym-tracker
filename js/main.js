@@ -417,7 +417,7 @@ class GymApp {
                 btn.addEventListener('click', () => {
                     const delta = parseFloat(btn.dataset.delta);
                     const current = parseFloat(weightInput.value) || 0;
-                    const next = Math.max(0, Math.round((current + delta) * 10) / 10);
+                    const next = Math.max(0, Math.round((current + delta) * 100) / 100);
                     weightInput.value = next;
                     storage.updateExercise(dayIndex, exerciseId, { weight: String(next) });
                 });

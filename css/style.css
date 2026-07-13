@@ -403,6 +403,7 @@ button, input {
 .rest-timer-row {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 10px;
     background: white;
     border-radius: 8px;
