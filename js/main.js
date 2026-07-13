@@ -233,6 +233,20 @@ class GymApp {
         this.switchScreen('homeScreen');
         weather.updateWeatherDisplay();
         this.displayDailyTip();
+        this.displayMilestoneCard();
+    }
+
+    displayMilestoneCard() {
+        const el = document.getElementById('milestoneCard');
+        if (!el) return;
+
+        const today = new Date();
+        const days = getDaysSinceStart(today);
+        const duration = formatDurationSinceStart(today);
+        const milestone = isMilestoneDay(today);
+
+        el.textContent = `トレーニング開始から${days}日目（${duration}）`;
+        el.classList.toggle('milestone-highlight', milestone);
     }
 
     displayDailyTip() {
@@ -648,12 +662,16 @@ class GymApp {
     }
 
     showSessionSummary(summary) {
+        const lifetimeVolume = getTotalLifetimeVolume();
+        const fun = getFunVolumeComparison(lifetimeVolume);
+
         alert(
             `トレーニングを記録しました！\n\n` +
             `種目数: ${summary.exerciseCount}\n` +
             `完了セット数: ${summary.totalSets}\n` +
             `総ボリューム: ${summary.totalVolume}kg\n` +
-            `所要時間: 約${summary.elapsedMinutes}分`
+            `所要時間: 約${summary.elapsedMinutes}分\n\n` +
+            `これまでの総重量: ${fun.unit}${fun.count}${fun.counter}分`
         );
         this.showHomeScreen();
     }

@@ -146,7 +146,13 @@ class History {
             return;
         }
 
+        const lifetimeVolume = getTotalLifetimeVolume();
+        const fun = getFunVolumeComparison(lifetimeVolume);
+
         container.innerHTML = `
+            <div class="volume-stat-block">
+                <div class="trend-title">自己記録開始から総重量: ${lifetimeVolume}kg（${fun.unit}${fun.count}${fun.counter}分）</div>
+            </div>
             <div class="volume-stat-block">
                 <div class="trend-title">週ごとの総ボリューム</div>
                 ${buildBarChartSVG(weeklyArr)}

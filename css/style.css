@@ -160,6 +160,20 @@ button, input {
     line-height: 1.7;
 }
 
+.milestone-card {
+    text-align: center;
+    margin-top: 15px;
+    padding: 8px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.milestone-card.milestone-highlight {
+    color: #ffe58a;
+    font-weight: bold;
+    font-size: 13px;
+}
+
 /* ボタン */
 .btn-primary {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
