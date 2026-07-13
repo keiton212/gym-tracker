@@ -623,22 +623,15 @@ class GymApp {
 
     buildSessionSummary(exerciseRecords) {
         let totalSets = 0;
-        let totalVolume = 0;
 
         Object.values(exerciseRecords).forEach(rec => {
             if (rec.perSetWeight) {
                 rec.sets.forEach(s => {
-                    const w = parseFloat(s.weight) || 0;
-                    const r = parseFloat(s.reps) || 0;
                     if (s.reps !== '') totalSets++;
-                    totalVolume += w * r;
                 });
             } else {
-                const w = parseFloat(rec.weight) || 0;
                 rec.sets.forEach(s => {
-                    const r = parseFloat(s) || 0;
                     if (s !== '') totalSets++;
-                    totalVolume += w * r;
                 });
             }
         });
@@ -649,7 +642,7 @@ class GymApp {
         return {
             exerciseCount: Object.keys(exerciseRecords).length,
             totalSets,
-            totalVolume: Math.round(totalVolume),
+            totalVolume: calculateSessionVolume(exerciseRecords),
             elapsedMinutes
         };
     }

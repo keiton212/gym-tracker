@@ -10,7 +10,9 @@ class History {
         if (dayIndex !== undefined) this.selectedDay = dayIndex;
 
         this.renderTabs();
+        this.renderTrends();
         this.renderSessions();
+        this.renderVolumeStats();
     }
 
     renderTabs() {
@@ -72,6 +74,88 @@ class History {
                 </div>
             `;
         }).join('');
+    }
+
+    // 選択中の曜日について、種目ごとの重量推移グラフを描画する
+    renderTrends() {
+        const container = document.getElementById('historyTrends');
+        if (!container) return;
+
+        const sessions = storage.getSessionsForDay(this.selectedDay).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        if (sessions.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const byExercise = {};
+        sessions.forEach(session => {
+            Object.keys(session.exercises).forEach(name => {
+                const weight = extractDisplayWeight(session.exercises[name]);
+                if (!byExercise[name]) byExercise[name] = [];
+                byExercise[name].push({ x: this.formatDate(session.date), y: weight });
+            });
+        });
+
+        container.innerHTML = Object.keys(byExercise).map(name => `
+            <div class="trend-card">
+                <div class="trend-title">${name}</div>
+                ${buildLineChartSVG(byExercise[name])}
+            </div>
+        `).join('');
+    }
+
+    // 週ごと・月ごとの総ボリューム（全曜日合算）を棒グラフで描画する
+    renderVolumeStats() {
+        const container = document.getElementById('historyVolumeStats');
+        if (!container) return;
+
+        const records = storage.getRecords();
+        const weekly = {};
+        const monthly = {};
+
+        for (const dateStr in records) {
+            for (const dayIdx in records[dateStr]) {
+                const volume = calculateSessionVolume(records[dateStr][dayIdx]);
+                if (volume <= 0) continue;
+
+                const d = new Date(dateStr);
+
+                const weekStart = new Date(d);
+                const diffToMonday = (weekStart.getDay() + 6) % 7;
+                weekStart.setDate(weekStart.getDate() - diffToMonday);
+                const wKey = weekStart.toISOString().split('T')[0];
+                if (!weekly[wKey]) {
+                    weekly[wKey] = { label: `${weekStart.getMonth() + 1}/${weekStart.getDate()}`, value: 0, sortDate: weekStart };
+                }
+                weekly[wKey].value += volume;
+
+                const mKey = `${d.getFullYear()}-${d.getMonth() + 1}`;
+                if (!monthly[mKey]) {
+                    monthly[mKey] = { label: `${d.getFullYear()}/${d.getMonth() + 1}`, value: 0, sortDate: new Date(d.getFullYear(), d.getMonth(), 1) };
+                }
+                monthly[mKey].value += volume;
+            }
+        }
+
+        const weeklyArr = Object.values(weekly).sort((a, b) => a.sortDate - b.sortDate).slice(-8);
+        const monthlyArr = Object.values(monthly).sort((a, b) => a.sortDate - b.sortDate).slice(-6);
+
+        if (weeklyArr.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="volume-stat-block">
+                <div class="trend-title">週ごとの総ボリューム</div>
+                ${buildBarChartSVG(weeklyArr)}
+            </div>
+            <div class="volume-stat-block">
+                <div class="trend-title">月ごとの総ボリューム</div>
+                ${buildBarChartSVG(monthlyArr)}
+            </div>
+        `;
     }
 
     formatDate(dateStr) {
