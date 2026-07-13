@@ -1,0 +1,684 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    background-color: #f3f4f6;
+    color: #1f2937;
+    overflow: hidden;
+    height: 100vh;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+}
+
+button, input {
+    font-family: inherit;
+    touch-action: manipulation;
+}
+
+.screen {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    animation: slideIn 0.3s ease-out;
+    z-index: 100;
+}
+
+.screen.active {
+    display: block;
+    z-index: 100;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* ホーム画面 */
+#homeScreen {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    padding: 20px;
+    padding-top: max(20px, env(safe-area-inset-top));
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    position: relative;
+}
+
+.home-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: white;
+    margin-bottom: 20px;
+}
+
+.header h1 {
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.weather-card {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+    color: white;
+    backdrop-filter: blur(10px);
+}
+
+.weather-current {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.weather-temp {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.weather-icon {
+    font-size: 40px;
+}
+
+.daily-forecast {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.forecast-item {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 8px 12px;
+    text-align: center;
+    flex: 1;
+    min-width: 60px;
+    font-size: 12px;
+}
+
+.forecast-time {
+    font-size: 11px;
+    opacity: 0.9;
+    margin-bottom: 4px;
+}
+
+.forecast-icon {
+    font-size: 20px;
+    margin-bottom: 4px;
+}
+
+.forecast-temp {
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.placeholder {
+    color: #9ca3af;
+    text-align: center;
+    padding: 20px;
+}
+
+.tip-card {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-top: 15px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+/* ボタン */
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    width: 100%;
+    min-height: 48px;
+}
+
+.btn-primary:active {
+    transform: scale(0.98);
+}
+
+.btn-large {
+    padding: 18px 30px;
+    font-size: 18px;
+    margin-bottom: 20px;
+}
+
+.btn-secondary {
+    background: white;
+    color: #667eea;
+    border: 2px solid #667eea;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 44px;
+}
+
+.btn-secondary:active {
+    background: #f3f4f6;
+}
+
+.btn-back {
+    background: none;
+    border: none;
+    color: #667eea;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 10px;
+    min-height: 44px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.action-buttons .btn-secondary {
+    flex: 1;
+    min-width: 150px;
+}
+
+/* トレーニング画面 */
+#trainingScreen {
+    background: white;
+    padding: 20px;
+    padding-top: calc(240px + env(safe-area-inset-top));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+}
+
+.training-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.training-header h2 {
+    flex: 1;
+    font-size: 18px;
+}
+
+.timer-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 30px;
+    color: white;
+    text-align: center;
+    position: fixed;
+    top: max(20px, env(safe-area-inset-top));
+    left: 20px;
+    right: 20px;
+    width: calc(100% - 40px);
+    z-index: 50;
+    transition: background 0.3s ease;
+}
+
+.timer-card.warning {
+    background: linear-gradient(135deg, #FF9F43 0%, #FFB347 100%);
+}
+
+.timer-card.critical {
+    background: linear-gradient(135deg, #FF3838 0%, #D63031 100%);
+    animation: pulse 0.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+.timer-display {
+    font-size: 40px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    font-variant-numeric: tabular-nums;
+}
+
+.timer-display #timerValue {
+    cursor: pointer;
+    border-bottom: 2px dashed rgba(255, 255, 255, 0.5);
+    padding-bottom: 2px;
+}
+
+.inline-time-edit {
+    width: 90px;
+    padding: 4px 6px;
+    border: none;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 32px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+}
+
+.inline-time-edit-small {
+    width: 56px;
+    font-size: 16px;
+    font-weight: bold;
+    padding: 4px;
+}
+
+.timer-controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.timer-controls .btn-secondary {
+    color: white;
+    border-color: white;
+    background: rgba(255, 255, 255, 0.1);
+    flex: 1;
+    min-width: 90px;
+}
+
+.recording-section {
+    margin-bottom: 30px;
+}
+
+.recording-section h3 {
+    font-size: 16px;
+    margin-bottom: 15px;
+    color: #1f2937;
+}
+
+.exercise-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.exercise-record {
+    background: #f3f4f6;
+    border-radius: 10px;
+    padding: 15px;
+}
+
+.exercise-record-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.reorder-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.btn-reorder {
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 10px;
+    color: #667eea;
+    cursor: pointer;
+    padding: 0;
+    width: 28px;
+    height: 20px;
+    line-height: 1;
+}
+
+.btn-reorder:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.exercise-name-input {
+    flex: 1;
+    font-size: 16px;
+    font-weight: bold;
+    color: #1f2937;
+    border: 1px solid transparent;
+    background: transparent;
+    padding: 8px;
+    border-radius: 6px;
+}
+
+.exercise-name-input:focus {
+    border-color: #667eea;
+    background: white;
+    outline: none;
+}
+
+.btn-delete-exercise {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 8px;
+    min-width: 40px;
+    min-height: 40px;
+}
+
+.rest-timer-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: white;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 12px;
+    transition: background 0.2s;
+}
+
+.rest-timer-row.rest-done {
+    background: #fee2e2;
+}
+
+.rest-timer-row label {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.rest-toggle-btn {
+    padding: 8px 14px;
+    font-size: 13px;
+    min-height: 40px;
+}
+
+.rest-countdown {
+    flex: 1;
+    font-size: 18px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    color: #667eea;
+    text-align: right;
+    cursor: pointer;
+    border-bottom: 1px dashed #667eea;
+    padding: 4px 2px;
+}
+
+.exercise-record-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #6b7280;
+    margin-bottom: 10px;
+    gap: 10px;
+}
+
+.exercise-record-info div {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.exercise-record-info input {
+    width: 60px;
+    padding: 6px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.btn-weight-step {
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    color: #667eea;
+    font-size: 16px;
+    font-weight: bold;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.set-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.set-input-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+}
+
+.set-input-row label {
+    font-size: 12px;
+    color: #6b7280;
+    min-width: 32px;
+    flex-shrink: 0;
+}
+
+.btn-same {
+    background: white;
+    border: 1px solid #667eea;
+    color: #667eea;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 4px 8px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.reps-diff {
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+    min-width: 34px;
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.set-input-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 16px;
+}
+
+.per-set-weight-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #6b7280;
+    margin-bottom: 10px;
+}
+
+.per-set-weight-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+
+.set-input-row-weighted .set-weight-input {
+    flex: 1;
+    max-width: 70px;
+}
+
+.set-input-row-weighted .set-weight-unit {
+    font-size: 12px;
+    color: #6b7280;
+    white-space: nowrap;
+}
+
+#addExerciseBtn {
+    margin-bottom: 20px;
+}
+
+#finishTrainingBtn {
+    margin-top: 10px;
+}
+
+/* 過去データ画面 */
+#historyScreen {
+    background: white;
+    padding: 20px;
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+}
+
+#exportDataBtn {
+    width: 100%;
+    margin-bottom: 15px;
+}
+
+/* メニュー編集画面 */
+#menuScreen {
+    background: white;
+    padding: 20px;
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+}
+
+.screen-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.screen-header h2 {
+    flex: 1;
+}
+
+.tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+}
+
+.tab-btn {
+    background: white;
+    border: 2px solid #d1d5db;
+    color: #6b7280;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    white-space: nowrap;
+    transition: all 0.2s;
+    min-height: 40px;
+    min-width: 40px;
+}
+
+.tab-btn.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.history-content {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.history-session-card {
+    background: #f3f4f6;
+    border-radius: 10px;
+    padding: 15px;
+}
+
+.history-session-date {
+    font-weight: bold;
+    color: #1f2937;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.history-exercise-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-top: 1px solid #e5e7eb;
+    font-size: 13px;
+    gap: 8px;
+}
+
+.history-exercise-row:first-of-type {
+    border-top: none;
+}
+
+.history-exercise-name {
+    flex: 1;
+    color: #1f2937;
+    font-weight: bold;
+}
+
+.history-exercise-weight {
+    color: #667eea;
+    white-space: nowrap;
+}
+
+.history-exercise-reps {
+    color: #6b7280;
+    white-space: nowrap;
+}
+
+/* レスポンシブ */
+@media (max-width: 480px) {
+    .weather-card {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .timer-display {
+        font-size: 34px;
+    }
+
+    .action-buttons .btn-secondary {
+        min-width: 100%;
+    }
+}
