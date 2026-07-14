@@ -71,7 +71,11 @@ function buildExerciseBodyHTML(dayIndex, exercise, liveValues) {
     if (exercise.perSetWeight) {
         return `
             <div class="exercise-record-info">
-                <div>セット数: <input type="number" class="sets-input" value="${escapeAttr(exercise.sets)}" min="1" max="10" inputmode="numeric"></div>
+                <div>セット数:
+                    <button type="button" class="btn-sets-step" data-delta="-1" aria-label="セット数を減らす">−</button>
+                    <input type="number" class="sets-input" value="${escapeAttr(exercise.sets)}" min="1" max="10" inputmode="numeric">
+                    <button type="button" class="btn-sets-step" data-delta="1" aria-label="セット数を増やす">＋</button>
+                </div>
             </div>
             <label class="per-set-weight-toggle">
                 <input type="checkbox" class="per-set-weight-checkbox" checked> セットごとに重量を変える
@@ -91,7 +95,11 @@ function buildExerciseBodyHTML(dayIndex, exercise, liveValues) {
                 <input type="number" class="weight-input" value="${escapeAttr(weightValue)}" min="0" inputmode="decimal">
                 <button type="button" class="btn-weight-step" data-delta="${step}" aria-label="重量を増やす">＋</button>
             kg</div>
-            <div>セット数: <input type="number" class="sets-input" value="${escapeAttr(exercise.sets)}" min="1" max="10" inputmode="numeric"></div>
+            <div>セット数:
+                <button type="button" class="btn-sets-step" data-delta="-1" aria-label="セット数を減らす">−</button>
+                <input type="number" class="sets-input" value="${escapeAttr(exercise.sets)}" min="1" max="10" inputmode="numeric">
+                <button type="button" class="btn-sets-step" data-delta="1" aria-label="セット数を増やす">＋</button>
+            </div>
         </div>
         <label class="per-set-weight-toggle">
             <input type="checkbox" class="per-set-weight-checkbox"> セットごとに重量を変える
@@ -176,6 +184,8 @@ class GymApp {
             const trainingScreen = document.getElementById('trainingScreen');
             if (document.visibilityState === 'visible' && trainingScreen?.classList.contains('active')) {
                 this.requestWakeLock();
+                timer.syncNow();
+                Object.values(this.restTimers).forEach(rt => rt.syncNow());
             }
         });
     }
@@ -464,11 +474,23 @@ class GymApp {
             });
         }
 
-        bodyEl.querySelector('.sets-input').addEventListener('change', (e) => {
-            const newCount = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
-            e.target.value = newCount;
-            storage.updateExercise(dayIndex, exerciseId, { sets: String(newCount) });
+        const setsInput = bodyEl.querySelector('.sets-input');
+        const applySetsCount = (newCount) => {
+            const clamped = Math.max(1, Math.min(10, newCount));
+            storage.updateExercise(dayIndex, exerciseId, { sets: String(clamped) });
             this.rerenderExerciseBody(dayIndex, cardEl, nameInput);
+        };
+
+        setsInput.addEventListener('change', (e) => {
+            applySetsCount(parseInt(e.target.value) || 1);
+        });
+
+        bodyEl.querySelectorAll('.btn-sets-step').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const delta = parseInt(btn.dataset.delta);
+                const current = parseInt(setsInput.value) || 1;
+                applySetsCount(current + delta);
+            });
         });
 
         bodyEl.querySelector('.per-set-weight-checkbox').addEventListener('change', (e) => {

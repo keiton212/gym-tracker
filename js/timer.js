@@ -47,12 +47,15 @@ function formatTime(totalSeconds) {
 }
 
 // セッション全体タイマー（トレーニング開始〜終了までの1つだけ）
+// iOSはバックグラウンド中にsetIntervalのカウントを止める/間引くため、
+// 経過時間は必ず実時刻(endAt)から逆算する。tick自体は表示更新のきっかけに過ぎない。
 class Timer {
     constructor() {
         this.duration = 70 * 60;
         this.remaining = this.duration;
         this.isRunning = false;
         this.intervalId = null;
+        this.endAt = null;
     }
 
     setDuration(minutes) {
@@ -65,22 +68,30 @@ class Timer {
     start() {
         if (this.isRunning) return;
         this.isRunning = true;
+        this.endAt = Date.now() + this.remaining * 1000;
 
-        this.intervalId = setInterval(() => {
-            this.remaining--;
-
-            if (this.remaining < 0) {
-                this.stop();
-                playBeep(3);
-                this.remaining = 0;
-                this.updateDisplay();
-                return;
-            }
-
-            this.updateDisplay();
-        }, 1000);
-
+        this.intervalId = setInterval(() => this.tick(), 250);
         this.updateDisplay();
+    }
+
+    tick() {
+        const remainingMs = this.endAt - Date.now();
+
+        if (remainingMs <= 0) {
+            this.stop();
+            playBeep(3);
+            this.remaining = 0;
+            this.updateDisplay();
+            return;
+        }
+
+        this.remaining = Math.ceil(remainingMs / 1000);
+        this.updateDisplay();
+    }
+
+    // アプリがバックグラウンドから復帰した直後などに、待たずに即座へ補正する
+    syncNow() {
+        if (this.isRunning) this.tick();
     }
 
     pause() {
@@ -89,6 +100,9 @@ class Timer {
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = null;
+        }
+        if (this.endAt) {
+            this.remaining = Math.max(0, Math.ceil((this.endAt - Date.now()) / 1000));
         }
     }
 
@@ -126,6 +140,7 @@ class Timer {
 const timer = new Timer();
 
 // 種目ごとのレストタイマー（複数同時に存在できる）
+// Timerと同じく、実時刻(endAt)から逆算してバックグラウンド復帰後も正確な残り時間にする。
 class RestTimer {
     constructor(minutes, onTick) {
         this.duration = Math.max(0, minutes) * 60;
@@ -133,6 +148,7 @@ class RestTimer {
         this.isRunning = false;
         this.intervalId = null;
         this.onTick = onTick;
+        this.endAt = null;
     }
 
     setMinutes(minutes) {
@@ -151,18 +167,35 @@ class RestTimer {
     }
 
     start() {
-        if (this.isRunning || this.remaining <= 0) return;
+        if (this.isRunning) return;
+        // 0で止まっている状態から再度スタートした場合は、満タンから取り直せるようにする
+        if (this.remaining <= 0) {
+            this.remaining = this.duration;
+        }
+        if (this.remaining <= 0) return;
+
         this.isRunning = true;
-        this.intervalId = setInterval(() => {
-            this.remaining--;
-            if (this.remaining <= 0) {
-                this.remaining = 0;
-                this.stop();
-                playBeep(2);
-            }
-            if (this.onTick) this.onTick(this);
-        }, 1000);
+        this.endAt = Date.now() + this.remaining * 1000;
+        this.intervalId = setInterval(() => this.tick(), 250);
         if (this.onTick) this.onTick(this);
+    }
+
+    tick() {
+        const remainingMs = this.endAt - Date.now();
+
+        if (remainingMs <= 0) {
+            this.remaining = 0;
+            this.stop();
+            playBeep(2);
+        } else {
+            this.remaining = Math.ceil(remainingMs / 1000);
+        }
+        if (this.onTick) this.onTick(this);
+    }
+
+    // アプリがバックグラウンドから復帰した直後などに、待たずに即座へ補正する
+    syncNow() {
+        if (this.isRunning) this.tick();
     }
 
     pause() {
@@ -170,6 +203,9 @@ class RestTimer {
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = null;
+        }
+        if (this.endAt) {
+            this.remaining = Math.max(0, Math.ceil((this.endAt - Date.now()) / 1000));
         }
         if (this.onTick) this.onTick(this);
     }

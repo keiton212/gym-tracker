@@ -531,6 +531,21 @@ button, input {
     flex-shrink: 0;
 }
 
+.btn-sets-step {
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    color: #667eea;
+    font-size: 16px;
+    font-weight: bold;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
 .set-inputs {
     display: flex;
     flex-direction: column;

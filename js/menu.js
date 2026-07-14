@@ -20,7 +20,11 @@ function buildMenuEditCardHTML(exercise, isFirst, isLast) {
                     <input type="number" class="weight-input" value="${escapeAttr(exercise.weight)}" min="0" inputmode="decimal">
                     <button type="button" class="btn-weight-step" data-delta="${exercise.weightStep ?? 2.5}" aria-label="重量を増やす">＋</button>
                 kg</div>`}
-                <div>セット数: <input type="number" class="sets-input" value="${escapeAttr(exercise.sets)}" min="1" max="10" inputmode="numeric"></div>
+                <div>セット数:
+                    <button type="button" class="btn-sets-step" data-delta="-1" aria-label="セット数を減らす">−</button>
+                    <input type="number" class="sets-input" value="${escapeAttr(exercise.sets)}" min="1" max="10" inputmode="numeric">
+                    <button type="button" class="btn-sets-step" data-delta="1" aria-label="セット数を増やす">＋</button>
+                </div>
             </div>
             ${exercise.perSetWeight ? '' : `
             <label class="weight-step-toggle">
@@ -124,10 +128,23 @@ class MenuEditor {
             });
         }
 
-        cardEl.querySelector('.sets-input').addEventListener('change', (e) => {
-            const count = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
-            e.target.value = count;
-            storage.updateExercise(dayIndex, exerciseId, { sets: String(count) });
+        const setsInput = cardEl.querySelector('.sets-input');
+        const applySetsCount = (newCount) => {
+            const clamped = Math.max(1, Math.min(10, newCount));
+            setsInput.value = clamped;
+            storage.updateExercise(dayIndex, exerciseId, { sets: String(clamped) });
+        };
+
+        setsInput.addEventListener('change', (e) => {
+            applySetsCount(parseInt(e.target.value) || 1);
+        });
+
+        cardEl.querySelectorAll('.btn-sets-step').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const delta = parseInt(btn.dataset.delta);
+                const current = parseInt(setsInput.value) || 1;
+                applySetsCount(current + delta);
+            });
         });
 
         const restEl = cardEl.querySelector('.rest-countdown');
