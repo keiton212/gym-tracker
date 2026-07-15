@@ -688,13 +688,19 @@ button, input {
 }
 
 /* 集中モード画面 */
+/* #focusScreen.active のように .active を含めて指定しないと、
+   IDセレクタの詳細度が .screen の display:none より強くなり、
+   非アクティブ時も常に最前面に表示されて他の画面のボタンを覆ってしまう */
+#focusScreen.active {
+    display: flex;
+    flex-direction: column;
+}
+
 #focusScreen {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     padding: 20px;
     padding-top: max(20px, env(safe-area-inset-top));
     padding-bottom: calc(20px + env(safe-area-inset-bottom));
-    display: flex;
-    flex-direction: column;
     min-height: 100vh;
     color: white;
 }
