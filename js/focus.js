@@ -119,7 +119,10 @@ class FocusMode {
             onConfirm: () => this.completeStep(),
             onBack: () => this.goBack()
         });
-        this.pollInterval = setInterval(() => this.updateRestDisplay(), 1000);
+        this.pollInterval = setInterval(() => {
+            this.updateRestDisplay();
+            this.updateTimerDisplay();
+        }, 1000);
     }
 
     currentCardEl() {
@@ -156,9 +159,10 @@ class FocusMode {
         document.getElementById('focusProgress').textContent = `${this.stepIndex + 1} / ${this.steps.length}`;
         document.getElementById('focusPrevBtn').disabled = this.stepIndex === 0;
         document.getElementById('focusCompleteBtn').textContent =
-            this.stepIndex === this.steps.length - 1 ? '完了して終了 ▶' : '完了 ▶';
+            this.stepIndex === this.steps.length - 1 ? '完了して終了 ▶' : '次へ ▶';
 
         this.updateRestDisplay();
+        this.updateTimerDisplay();
         // 種目名が長いとロック画面で残りセット数が見切れるため、数字だけを先頭に出す
         lockScreenControl.updateMetadata({
             title: `${step.si + 1}/${step.setCount} ${ex.name || '種目'}`,
@@ -229,6 +233,11 @@ class FocusMode {
         const card = this.currentCardEl();
         if (!card) return;
         this.app.restTimers[card.dataset.exerciseId]?.toggle();
+    }
+
+    updateTimerDisplay() {
+        const el = document.getElementById('focusTimerValue');
+        if (el) el.textContent = formatTime(timer.remaining);
     }
 
     updateRestDisplay() {

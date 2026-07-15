@@ -709,6 +709,14 @@ button, input {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 10px;
+}
+
+.focus-timer-value {
+    font-size: 14px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.9;
 }
 
 .focus-back-btn {
