@@ -187,6 +187,18 @@ class Storage {
         return records[dateStr]?.[dayIndex] || null;
     }
 
+    // 指定日付・曜日の記録を削除する（誤って追加した記録の取り消し用）
+    deleteRecordForDate(dateStr, dayIndex) {
+        const records = this.getRecords();
+        if (!records[dateStr]) return;
+
+        delete records[dateStr][dayIndex];
+        if (Object.keys(records[dateStr]).length === 0) {
+            delete records[dateStr];
+        }
+        localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(records));
+    }
+
     // 前回の同じ曜日の記録を取得
     getLastRecordForSameDay(exerciseName, dayIndex) {
         const records = this.getRecords();

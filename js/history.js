@@ -69,11 +69,23 @@ class History {
 
             return `
                 <div class="history-session-card">
-                    <div class="history-session-date">${dateLabel}</div>
+                    <div class="history-session-date">
+                        <span>${dateLabel}</span>
+                        <button type="button" class="btn-delete-session" data-date="${session.date}" aria-label="この記録を削除">🗑</button>
+                    </div>
                     ${exerciseRows}
                 </div>
             `;
         }).join('');
+
+        container.querySelectorAll('.btn-delete-session').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const dateStr = btn.dataset.date;
+                if (!confirm(`${this.formatDate(dateStr)}の記録を削除しますか？`)) return;
+                storage.deleteRecordForDate(dateStr, this.selectedDay);
+                this.render(this.selectedDay);
+            });
+        });
     }
 
     // 選択中の曜日について、種目ごとの重量推移グラフを描画する
