@@ -142,6 +142,7 @@ class GymApp {
     }
 
     init() {
+        this.focusMode = new FocusMode(this);
         this.setupEventListeners();
         this.displayHomeScreen();
     }
@@ -150,6 +151,7 @@ class GymApp {
         document.getElementById('startBtn')?.addEventListener('click', () => this.startTraining());
         document.getElementById('menuEditBtn')?.addEventListener('click', () => this.showMenuScreen());
         document.getElementById('historyBtn')?.addEventListener('click', () => this.showHistoryScreen());
+        document.getElementById('focusModeBtn')?.addEventListener('click', () => this.focusMode.start(this.currentDayIndex));
 
         document.getElementById('finishTrainingBtn')?.addEventListener('click', () => this.finishTraining());
         document.getElementById('addExerciseBtn')?.addEventListener('click', () => this.addExercise());

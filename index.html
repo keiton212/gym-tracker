@@ -64,6 +64,8 @@
             </div>
         </div>
 
+        <button id="focusModeBtn" class="btn-primary">🎯 集中モードで記録</button>
+
         <div class="recording-section">
             <h3>記録</h3>
             <div id="exerciseList" class="exercise-list">
@@ -91,6 +93,43 @@
         <button id="addMenuExerciseBtn" class="btn-secondary">＋ 種目を追加</button>
 
         <button class="btn-back btn-back-float" aria-label="ホームに戻る">←</button>
+    </div>
+
+    <!-- 集中モード画面 -->
+    <div id="focusScreen" class="screen">
+        <div class="focus-header">
+            <button id="focusExitBtn" class="btn-back">◀ 通常画面</button>
+            <span id="focusProgress" class="focus-progress"></span>
+        </div>
+
+        <div class="focus-card">
+            <h2 id="focusExerciseName" class="focus-exercise-name">種目名</h2>
+            <div id="focusSetLabel" class="focus-set-label">セット 1 / 3</div>
+
+            <div class="focus-value-row">
+                <button id="focusWeightMinus" class="focus-step-btn" aria-label="重量を減らす">−</button>
+                <div class="focus-value"><span id="focusWeightValue">0</span><span class="focus-unit">kg</span></div>
+                <button id="focusWeightPlus" class="focus-step-btn" aria-label="重量を増やす">＋</button>
+            </div>
+
+            <div class="focus-value-row">
+                <button id="focusRepsMinus" class="focus-step-btn" aria-label="回数を減らす">−</button>
+                <div class="focus-value"><span id="focusRepsValue">0</span><span class="focus-unit">回</span></div>
+                <button id="focusRepsPlus" class="focus-step-btn" aria-label="回数を増やす">＋</button>
+            </div>
+
+            <div id="focusRestRow" class="focus-rest-row">
+                <button id="focusRestToggleBtn" class="btn-secondary">レスト開始</button>
+                <span id="focusRestValue" class="focus-rest-value">00:00</span>
+            </div>
+        </div>
+
+        <div class="focus-nav-row">
+            <button id="focusPrevBtn" class="btn-secondary focus-prev-btn">◀ 前へ</button>
+            <button id="focusCompleteBtn" class="btn-primary focus-complete-btn">完了 ▶</button>
+        </div>
+
+        <p class="focus-hint">💡 ロック画面の「次へ/前へ/再生」ボタンでも操作できます</p>
     </div>
 
     <!-- 過去データ画面 -->
@@ -123,6 +162,8 @@
     <script src="js/history.js"></script>
     <script src="js/tips.js"></script>
     <script src="js/menu.js"></script>
+    <script src="js/lockscreen.js"></script>
+    <script src="js/focus.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>
