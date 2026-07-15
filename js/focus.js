@@ -74,7 +74,7 @@ class FocusMode {
         const repsInput = row.querySelector('.reps-input');
         const weightInput = isPerSetWeight ? row.querySelector('.set-weight-input') : card.querySelector('.weight-input');
 
-        const repsVal = repsInput.value !== '' ? repsInput.value : (repsInput.dataset.lastReps || '0');
+        const repsVal = repsInput.value !== '' ? repsInput.value : (repsInput.dataset.lastReps || repsInput.dataset.suggestedReps || '0');
         const weightVal = weightInput.value !== '' ? weightInput.value : (weightInput.dataset.lastWeight || '0');
 
         document.getElementById('focusExerciseName').textContent = ex.name || '種目';
@@ -126,9 +126,9 @@ class FocusMode {
         const repsInput = row.querySelector('.reps-input');
         const weightInput = isPerSetWeight ? row.querySelector('.set-weight-input') : card.querySelector('.weight-input');
 
-        // 未入力のまま完了した場合は、前回値をそのまま今回の記録として確定させる
-        if (repsInput.value === '' && repsInput.dataset.lastReps) {
-            repsInput.value = repsInput.dataset.lastReps;
+        // 未入力のまま完了した場合は、前回値（無ければ目標回数レンジの下限）を今回の記録として確定させる
+        if (repsInput.value === '' && (repsInput.dataset.lastReps || repsInput.dataset.suggestedReps)) {
+            repsInput.value = repsInput.dataset.lastReps || repsInput.dataset.suggestedReps;
             repsInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
         if (isPerSetWeight && weightInput.value === '' && weightInput.dataset.lastWeight) {

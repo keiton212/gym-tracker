@@ -10,6 +10,12 @@ function roundToHalf(value) {
     return Math.round(value * 2) / 2;
 }
 
+// 過去記録が無い種目の回数初期値として使う、目標回数レンジ（例:"5-8"）の下限値
+function parseRepsRangeLower(repsRange) {
+    const match = String(repsRange ?? '').match(/\d+/);
+    return match ? parseInt(match[0]) : null;
+}
+
 function selectElementText(el) {
     const range = document.createRange();
     range.selectNodeContents(el);

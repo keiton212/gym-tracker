@@ -2,6 +2,7 @@ function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
     const lastRecord = storage.getLastRecordForSameDay(exercise.name, dayIndex);
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const lastIsPerSetWeight = lastRecord?.perSetWeight;
+    const suggestedReps = parseRepsRangeLower(exercise.repsRange);
 
     return Array.from({ length: setCount }, (_, i) => {
         let lastReps = null;
@@ -11,14 +12,16 @@ function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
             if (rawReps !== undefined && rawReps !== '') lastReps = parseInt(rawReps);
         }
         const liveReps = liveValues?.sets?.[i]?.reps ?? '';
-        const placeholder = lastReps !== null && !isNaN(lastReps) ? `${lastReps}` : '回数';
+        // 過去記録があればそれを、無ければ目標回数レンジの下限を初期値として使う
+        const defaultReps = lastReps !== null && !isNaN(lastReps) ? lastReps : suggestedReps;
+        const placeholder = defaultReps !== null ? `${defaultReps}` : '回数';
         const sameBtn = lastReps !== null && !isNaN(lastReps)
             ? `<button type="button" class="btn-same" data-set="${i}">同</button>`
             : '';
         return `
             <div class="set-input-row">
                 <label>セット${i + 1}</label>
-                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${lastReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${placeholder}" min="0" inputmode="numeric">
+                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${lastReps ?? ''}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${placeholder}" min="0" inputmode="numeric">
                 <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
                 <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
                 ${sameBtn}
@@ -33,6 +36,7 @@ function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const lastIsPerSetWeight = lastRecord?.perSetWeight;
     const step = exercise.weightStep ?? 2.5;
+    const suggestedReps = parseRepsRangeLower(exercise.repsRange);
 
     return Array.from({ length: setCount }, (_, i) => {
         let lastWeight = '';
@@ -46,7 +50,9 @@ function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
         }
         const liveWeight = liveValues?.sets?.[i]?.weight ?? '';
         const liveReps = liveValues?.sets?.[i]?.reps ?? '';
-        const repsPlaceholder = lastReps !== null && !isNaN(lastReps) ? `${lastReps}` : '回数';
+        // 過去記録があればそれを、無ければ目標回数レンジの下限を初期値として使う
+        const defaultReps = lastReps !== null && !isNaN(lastReps) ? lastReps : suggestedReps;
+        const repsPlaceholder = defaultReps !== null ? `${defaultReps}` : '回数';
         const weightPlaceholder = lastWeight !== '' ? `${lastWeight}` : 'kg';
         const sameBtn = (lastReps !== null || lastWeight !== '')
             ? `<button type="button" class="btn-same" data-set="${i}">同</button>`
@@ -57,7 +63,7 @@ function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
                 <button type="button" class="btn-weight-step-set" data-set="${i}" data-delta="-${step}" aria-label="重量を減らす">−</button>
                 <input type="number" class="set-weight-input" data-set="${i}" data-last-weight="${lastWeight}" value="${escapeAttr(liveWeight)}" placeholder="${weightPlaceholder}" min="0" inputmode="decimal">
                 <button type="button" class="btn-weight-step-set" data-set="${i}" data-delta="${step}" aria-label="重量を増やす">＋</button>
-                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${lastReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${repsPlaceholder}" min="0" inputmode="numeric">
+                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${lastReps ?? ''}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${repsPlaceholder}" min="0" inputmode="numeric">
                 <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
                 <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
                 ${sameBtn}
@@ -579,7 +585,8 @@ class GymApp {
                 if (!repsInput) return;
 
                 const lastReps = repsInput.dataset.lastReps ? parseInt(repsInput.dataset.lastReps) : null;
-                const current = repsInput.value !== '' ? parseInt(repsInput.value) : (lastReps ?? 0);
+                const suggestedReps = repsInput.dataset.suggestedReps ? parseInt(repsInput.dataset.suggestedReps) : null;
+                const current = repsInput.value !== '' ? parseInt(repsInput.value) : (lastReps ?? suggestedReps ?? 0);
                 const delta = parseInt(btn.dataset.delta);
                 const next = Math.max(0, (isNaN(current) ? 0 : current) + delta);
 
