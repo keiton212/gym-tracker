@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ロック画面連動テスト</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background:#111; color:#eee; padding:20px; line-height:1.6; }
+  button { font-size:18px; padding:14px 20px; margin:8px 4px; border-radius:10px; border:none; background:#667eea; color:#fff; }
+  button.danger { background:#ef4444; }
+  #status { font-size:16px; margin:16px 0; padding:12px; background:#222; border-radius:10px; }
+  #log { font-size:14px; background:#222; border-radius:10px; padding:12px; max-height:300px; overflow-y:auto; }
+  #log div { border-bottom:1px solid #333; padding:4px 0; }
+  h1 { font-size:20px; }
+  .step { color:#9ca3af; font-size:14px; }
+</style>
+</head>
+<body>
+<h1>🔒 ロック画面連動テスト</h1>
+<p class="step">
+  1. 下の「テスト開始」を押す（必ずタップ操作で。自動再生はiOSがブロックします）<br>
+  2. ステータスが「再生中」になったら、そのままホームボタン/スワイプで画面をロックする<br>
+  3. ロック画面 or コントロールセンターに再生パネルが出るか確認<br>
+  4. 「次へ」「前へ」「再生/一時停止」ボタンを押してみる<br>
+  5. ロックを解除してこのページに戻り、下のログに記録が残っているか確認
+</p>
+
+<button id="startBtn">▶ テスト開始</button>
+<button id="clearBtn" class="danger">ログをクリア</button>
+
+<div id="status">未開始</div>
+
+<h3>操作ログ（ロック中に押した操作もここに記録されます）</h3>
+<div id="log"></div>
+
+<audio id="silentAudio" loop playsinline></audio>
+
+<script>
+const LOG_KEY = 'lockscreen_test_log';
+const COUNT_KEY = 'lockscreen_test_count';
+
+function loadLog() {
+  return JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
+}
+function saveLog(log) {
+  localStorage.setItem(LOG_KEY, JSON.stringify(log));
+}
+function addLog(msg) {
+  const log = loadLog();
+  const time = new Date().toLocaleTimeString('ja-JP');
+  log.unshift(`[${time}] ${msg}`);
+  saveLog(log.slice(0, 50));
+  renderLog();
+}
+function renderLog() {
+  const el = document.getElementById('log');
+  el.innerHTML = loadLog().map(l => `<div>${l}</div>`).join('') || '<div>まだ記録なし</div>';
+}
+function getCount() {
+  return parseInt(localStorage.getItem(COUNT_KEY) || '0');
+}
+function setCount(n) {
+  localStorage.setItem(COUNT_KEY, String(n));
+  updateMetadata(n);
+}
+function updateMetadata(n) {
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: `セット ${n} 完了`,
+      artist: 'GymTracker テスト',
+      album: 'ロック画面操作の確認中'
+    });
+  }
+}
+
+function createSilentWavBlob(durationSec = 2, sampleRate = 8000) {
+  const numSamples = durationSec * sampleRate;
+  const dataSize = numSamples;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  function writeString(offset, str) {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  }
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate, true);
+  view.setUint16(32, 1, true);
+  view.setUint16(34, 8, true);
+  writeString(36, 'data');
+  view.setUint32(40, dataSize, true);
+  for (let i = 0; i < dataSize; i++) view.setUint8(44 + i, 128);
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+document.getElementById('startBtn').addEventListener('click', async () => {
+  const audio = document.getElementById('silentAudio');
+  if (!audio.src) {
+    const blob = createSilentWavBlob();
+    audio.src = URL.createObjectURL(blob);
+  }
+  try {
+    await audio.play();
+    document.getElementById('status').textContent = '再生中（この状態でロックしてください）';
+    addLog('テスト開始（再生ボタンをタップ）');
+    updateMetadata(getCount());
+  } catch (e) {
+    document.getElementById('status').textContent = '再生に失敗: ' + e.message;
+    addLog('再生失敗: ' + e.message);
+  }
+
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+      const n = getCount() + 1;
+      setCount(n);
+      addLog(`「次へ」が押された → セット${n}`);
+    });
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+      const n = Math.max(0, getCount() - 1);
+      setCount(n);
+      addLog(`「前へ」が押された → セット${n}`);
+    });
+    navigator.mediaSession.setActionHandler('play', () => {
+      audio.play();
+      navigator.mediaSession.playbackState = 'playing';
+      addLog('「再生」が押された');
+    });
+    navigator.mediaSession.setActionHandler('pause', () => {
+      navigator.mediaSession.playbackState = 'paused';
+      addLog('「一時停止」が押された（音声は継続再生）');
+    });
+  } else {
+    addLog('この端末/ブラウザは Media Session API 非対応');
+  }
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  localStorage.removeItem(LOG_KEY);
+  localStorage.removeItem(COUNT_KEY);
+  renderLog();
+  document.getElementById('status').textContent = '未開始';
+});
+
+renderLog();
+</script>
+</body>
+</html>
