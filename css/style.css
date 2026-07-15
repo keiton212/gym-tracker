@@ -712,8 +712,13 @@ button, input {
     gap: 10px;
 }
 
+.focus-timer-row {
+    text-align: center;
+    margin-top: 6px;
+}
+
 .focus-timer-value {
-    font-size: 14px;
+    font-size: 30px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;
     opacity: 0.9;
@@ -815,7 +820,7 @@ button, input {
 }
 
 .focus-rest-value {
-    font-size: 20px;
+    font-size: 28px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
