@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gym-tracker-v20';
+const CACHE_NAME = 'gym-tracker-v21';
 const urlsToCache = [
     './',
     './index.html',
@@ -49,7 +49,7 @@ self.addEventListener('fetch', event => {
     }
 
     event.respondWith(
-        fetch(event.request)
+        fetch(event.request, { cache: 'no-store' })
             .then(response => {
                 if (response && response.status === 200 && response.type === 'basic') {
                     const responseToCache = response.clone();
