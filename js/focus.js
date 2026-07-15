@@ -87,8 +87,9 @@ class FocusMode {
             this.stepIndex === this.steps.length - 1 ? '完了して終了 ▶' : '完了 ▶';
 
         this.updateRestDisplay();
+        // 種目名が長いとロック画面で残りセット数が見切れるため、数字だけを先頭に出す
         lockScreenControl.updateMetadata({
-            title: `${ex.name || '種目'} セット${step.si + 1}/${step.setCount}`,
+            title: `${step.si + 1}/${step.setCount} ${ex.name || '種目'}`,
             artist: `${weightVal}kg × ${repsVal}回`,
             album: 'GymTracker'
         });
