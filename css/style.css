@@ -787,6 +787,13 @@ button, input {
     opacity: 0.8;
 }
 
+#focusWeightValue {
+    cursor: pointer;
+    border-bottom: 2px dashed rgba(255, 255, 255, 0.5);
+    padding-bottom: 2px;
+    outline: none;
+}
+
 .focus-rest-row {
     display: flex;
     align-items: center;
@@ -803,6 +810,10 @@ button, input {
     font-size: 20px;
     font-weight: bold;
     font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.5);
+    padding-bottom: 2px;
+    outline: none;
 }
 
 .focus-nav-row {

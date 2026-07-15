@@ -20,9 +20,81 @@ class FocusMode {
         document.getElementById('focusRepsMinus')?.addEventListener('click', () => this.adjustReps(-1));
         document.getElementById('focusRepsPlus')?.addEventListener('click', () => this.adjustReps(1));
         document.getElementById('focusRestToggleBtn')?.addEventListener('click', () => this.toggleRest());
+        this.setupWeightTapToEdit();
+        this.setupRestTapToEdit();
+    }
+
+    setupWeightTapToEdit() {
+        const el = document.getElementById('focusWeightValue');
+        if (!el) return;
+        el.setAttribute('contenteditable', 'true');
+        el.setAttribute('inputmode', 'decimal');
+
+        el.addEventListener('focus', () => selectElementText(el));
+        el.addEventListener('input', () => sanitizeNumericContentEditable(el, true));
+        el.addEventListener('blur', () => {
+            const card = this.currentCardEl();
+            const row = this.currentRow();
+            if (!card || !row) return;
+
+            const isPerSetWeight = !!card.querySelector('.per-set-weight-checkbox')?.checked;
+            const weightInput = isPerSetWeight ? row.querySelector('.set-weight-input') : card.querySelector('.weight-input');
+            const next = Math.max(0, parseFloat(el.textContent) || 0);
+
+            weightInput.value = next;
+            if (!isPerSetWeight) weightInput.dispatchEvent(new Event('change', { bubbles: true }));
+            this.render();
+        });
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                el.blur();
+            }
+        });
+    }
+
+    setupRestTapToEdit() {
+        const el = document.getElementById('focusRestValue');
+        if (!el) return;
+        el.setAttribute('contenteditable', 'true');
+        el.setAttribute('inputmode', 'decimal');
+
+        let lastMinutes = 2;
+        el.addEventListener('focus', () => {
+            const card = this.currentCardEl();
+            const rt = card ? this.app.restTimers[card.dataset.exerciseId] : null;
+            if (!rt || rt.isRunning) {
+                el.blur();
+                return;
+            }
+            lastMinutes = rt.duration / 60;
+            el.textContent = lastMinutes;
+            selectElementText(el);
+        });
+        el.addEventListener('input', () => sanitizeNumericContentEditable(el, true));
+        el.addEventListener('blur', () => {
+            const card = this.currentCardEl();
+            if (!card) return;
+
+            const exerciseId = card.dataset.exerciseId;
+            const rt = this.app.restTimers[exerciseId];
+            if (!rt) return;
+
+            const minutes = Math.max(0, Math.min(30, roundToHalf(parseFloat(el.textContent) || lastMinutes)));
+            storage.updateExercise(this.dayIndex, exerciseId, { restMinutes: minutes });
+            rt.setMinutes(minutes);
+            this.updateRestDisplay();
+        });
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                el.blur();
+            }
+        });
     }
 
     start(dayIndex) {
+        this.dayIndex = dayIndex;
         this.exercises = storage.getExercisesForDay(dayIndex);
         this.steps = [];
         this.exercises.forEach((ex, ei) => {
@@ -169,7 +241,9 @@ class FocusMode {
         const toggleBtn = document.getElementById('focusRestToggleBtn');
         const restRow = document.getElementById('focusRestRow');
 
-        if (displayEl && countdownEl) displayEl.textContent = countdownEl.textContent;
+        if (displayEl && countdownEl && document.activeElement !== displayEl) {
+            displayEl.textContent = countdownEl.textContent;
+        }
         if (toggleBtn) toggleBtn.textContent = rt?.isRunning ? '一時停止' : 'レスト開始';
         if (restRow) restRow.classList.toggle('rest-done', !!rt && !rt.isRunning && rt.remaining === 0);
     }
