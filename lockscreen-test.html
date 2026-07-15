@@ -21,8 +21,8 @@
   1. 下の「テスト開始」を押す（必ずタップ操作で。自動再生はiOSがブロックします）<br>
   2. ステータスが「再生中」になったら、そのままホームボタン/スワイプで画面をロックする<br>
   3. ロック画面 or コントロールセンターに再生パネルが出るか確認<br>
-  4. 「次へ」「前へ」「再生/一時停止」ボタンを押してみる<br>
-  5. ロックを解除してこのページに戻り、下のログに記録が残っているか確認
+  4. 「次へ」「前へ」「再生/一時停止」に加えて、<b>早戻し/早送り（15秒/30秒スキップのようなアイコン）</b>が出ているか確認し、出ていれば押してみる<br>
+  5. ロックを解除してこのページに戻り、下のログに記録が残っているか確認（特に「早戻し」「早送り」が記録されているか）
 </p>
 
 <button id="startBtn">▶ テスト開始</button>
@@ -133,6 +133,12 @@ document.getElementById('startBtn').addEventListener('click', async () => {
     navigator.mediaSession.setActionHandler('pause', () => {
       navigator.mediaSession.playbackState = 'paused';
       addLog('「一時停止」が押された（音声は継続再生）');
+    });
+    navigator.mediaSession.setActionHandler('seekbackward', () => {
+      addLog('「早戻し」が押された → 回数-1のつもり');
+    });
+    navigator.mediaSession.setActionHandler('seekforward', () => {
+      addLog('「早送り」が押された → 回数+1のつもり');
     });
   } else {
     addLog('この端末/ブラウザは Media Session API 非対応');
