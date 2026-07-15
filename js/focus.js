@@ -42,9 +42,10 @@ class FocusMode {
         this.render();
 
         lockScreenControl.start({
-            onNext: () => this.completeStep(),
-            onPrev: () => this.goBack(),
-            onPlayPause: () => this.toggleRest()
+            onRepsDown: () => this.adjustReps(-1),
+            onRepsUp: () => this.adjustReps(1),
+            onConfirm: () => this.completeStep(),
+            onBack: () => this.goBack()
         });
         this.pollInterval = setInterval(() => this.updateRestDisplay(), 1000);
     }

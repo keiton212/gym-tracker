@@ -44,19 +44,26 @@ const lockScreenControl = (() => {
 
         if (!('mediaSession' in navigator)) return;
 
-        navigator.mediaSession.setActionHandler('nexttrack', () => handlers?.onNext?.());
-        navigator.mediaSession.setActionHandler('previoustrack', () => handlers?.onPrev?.());
+        // 早戻し/早送り（本来は15秒/30秒スキップ用）を回数の−1/+1に転用する。
+        // iOSはこれらを登録すると「前へ/次へ」の代わりにこちらのアイコンを出す。
+        navigator.mediaSession.setActionHandler('seekbackward', () => handlers?.onRepsDown?.());
+        navigator.mediaSession.setActionHandler('seekforward', () => handlers?.onRepsUp?.());
+
+        // 「前へ/次へ」が表示される環境向けのフォールバック
+        navigator.mediaSession.setActionHandler('nexttrack', () => handlers?.onConfirm?.());
+        navigator.mediaSession.setActionHandler('previoustrack', () => handlers?.onBack?.());
 
         // 一時停止を押しても裏の無音再生は止めない（止めるとロック画面の操作パネルごと消えるため）
+        // 再生/一時停止はどちらも同じ「今のセットを確定して次へ」に割り当てる
         navigator.mediaSession.setActionHandler('play', () => {
             audioEl.play().catch(() => {});
             navigator.mediaSession.playbackState = 'playing';
-            handlers?.onPlayPause?.();
+            handlers?.onConfirm?.();
         });
         navigator.mediaSession.setActionHandler('pause', () => {
             audioEl.play().catch(() => {});
             navigator.mediaSession.playbackState = 'playing';
-            handlers?.onPlayPause?.();
+            handlers?.onConfirm?.();
         });
     }
 
@@ -70,6 +77,8 @@ const lockScreenControl = (() => {
         if (audioEl) audioEl.pause();
 
         if (!('mediaSession' in navigator)) return;
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+        navigator.mediaSession.setActionHandler('seekforward', null);
         navigator.mediaSession.setActionHandler('nexttrack', null);
         navigator.mediaSession.setActionHandler('previoustrack', null);
         navigator.mediaSession.setActionHandler('play', null);
