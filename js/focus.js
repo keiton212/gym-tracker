@@ -267,10 +267,14 @@ class FocusMode {
         const exerciseId = card.dataset.exerciseId;
 
         if (this.stepIndex + 1 < this.steps.length) {
+            // 次のステップが同じ種目の残りセットの場合だけ、その種目のレストタイマーを開始する。
+            // 別の種目に移る場合はもう休む必要がないので、今の種目のタイマーも含めて全て止める。
+            const nextStep = this.steps[this.stepIndex + 1];
+            const staysOnSameExercise = nextStep.ei === step.ei;
             Object.entries(this.app.restTimers).forEach(([id, restTimer]) => {
-                if (id !== exerciseId) restTimer.stop();
+                if (id !== exerciseId || !staysOnSameExercise) restTimer.stop();
             });
-            this.app.restTimers[exerciseId]?.start();
+            if (staysOnSameExercise) this.app.restTimers[exerciseId]?.start();
             this.stepIndex++;
             storage.setFocusProgress(this.dayIndex, this.stepIndex);
             this.render();

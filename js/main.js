@@ -140,7 +140,10 @@ function buildExerciseCardHTML(dayIndex, exercise, isFirst, isLast) {
             </div>
             <div class="exercise-variants">
                 ${choices.map((name, index) => `<div class="exercise-variant ${index === 0 ? 'active' : ''}" data-variant-name="${escapeAttr(name)}">
-                    ${index > 0 ? `<div class="exercise-variant-or">OR ${escapeAttr(name)}</div>` : ''}
+                    ${index > 0 ? `<div class="exercise-variant-or">
+                        <span class="exercise-variant-or-label">OR</span>
+                        <input type="text" class="exercise-name-input exercise-alt-name-input" data-alt-index="${index - 1}" value="${escapeAttr(name)}" placeholder="種目名">
+                    </div>` : ''}
                     <div class="exercise-body">${buildExerciseBodyHTML(dayIndex, { ...exercise, name })}</div>
                 </div>`).join('')}
             </div>
@@ -439,6 +442,16 @@ class GymApp {
             cardEl.querySelectorAll('.exercise-variant').forEach(variant => variant.classList.toggle('active', variant.dataset.variantName === btn.dataset.choice));
             this.saveDraftFromScreen();
         }));
+        cardEl.querySelectorAll('.exercise-alt-name-input').forEach(input => {
+            input.addEventListener('change', (e) => {
+                const altIndex = parseInt(input.dataset.altIndex, 10);
+                const newName = e.target.value.trim();
+                if (!newName) { this.renderExerciseList(dayIndex); return; }
+                storage.renameAlternative(dayIndex, exerciseId, altIndex, newName);
+                this.renderExerciseList(dayIndex);
+            });
+        });
+
         cardEl.querySelector('.btn-add-alternative')?.addEventListener('click', () => {
             const name = prompt('追加する種目名を入力してください');
             if (!name?.trim()) return;

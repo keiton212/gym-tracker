@@ -156,6 +156,14 @@ class Storage {
         }
     }
 
+    renameAlternative(dayIndex, exerciseId, altIndex, newName) {
+        const menu = this.getMenu();
+        const exercise = menu[dayIndex]?.exercises?.find(e => e.id === exerciseId);
+        if (!exercise || !newName || !Array.isArray(exercise.alternatives) || exercise.alternatives[altIndex] === undefined) return;
+        exercise.alternatives[altIndex] = newName;
+        this.setMenu(menu);
+    }
+
     deleteExercise(dayIndex, exerciseId) {
         const menu = this.getMenu();
         menu[dayIndex].exercises = menu[dayIndex].exercises.filter(e => e.id !== exerciseId);
