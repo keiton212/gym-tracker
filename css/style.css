@@ -18,9 +18,85 @@ html, body {
     height: 100%;
 }
 
+/* PCでは実機に近いiPhoneサイズの編集キャンバスとして表示 */
+@media (min-width: 700px) {
+    body {
+        background: #111827;
+    }
+
+    body::before {
+        content: 'Gym Tracker  •  iPhoneプレビュー';
+        position: fixed;
+        top: 18px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        color: #9ca3af;
+        font-size: 13px;
+        letter-spacing: .04em;
+    }
+
+    .screen {
+        width: min(390px, 100vw);
+        height: min(844px, 100vh);
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        animation: none;
+        border: 10px solid #030712;
+        border-radius: 42px;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, .55);
+        padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    }
+
+    .screen.active {
+        transform: translate(-50%, -50%);
+    }
+
+    .screen:not(#homeScreen) {
+        background: #f9fafb;
+    }
+}
+
 button, input {
     font-family: inherit;
     touch-action: manipulation;
+}
+
+.draft-notice {
+    margin: 0 16px 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #ecfdf5;
+    color: #047857;
+    font-size: 12px;
+    text-align: center;
+}
+
+.btn-add-alternative {
+    width: 100%;
+    margin-top: 10px;
+    font-size: 12px;
+}
+
+.exercise-choice-label {
+    display: block;
+    margin-top: 10px;
+    color: #4b5563;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.exercise-choice {
+    display: block;
+    width: 100%;
+    margin-top: 5px;
+    padding: 9px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #fff;
+    color: #1f2937;
+    font-size: 15px;
 }
 
 .screen {

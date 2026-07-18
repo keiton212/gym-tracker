@@ -117,6 +117,12 @@ function buildExerciseBodyHTML(dayIndex, exercise, liveValues) {
 }
 
 function buildExerciseCardHTML(dayIndex, exercise, isFirst, isLast) {
+    const choices = [exercise.name, ...(exercise.alternatives || [])].filter(Boolean);
+    const choiceControl = choices.length > 1
+        ? `<label class="exercise-choice-label">この枠で行う種目
+                <select class="exercise-choice">${choices.map(name => `<option value="${escapeAttr(name)}">${escapeAttr(name)}</option>`).join('')}</select>
+           </label>`
+        : '';
     return `
         <div class="exercise-record" data-exercise-id="${exercise.id}">
             <div class="exercise-record-header">
@@ -127,6 +133,8 @@ function buildExerciseCardHTML(dayIndex, exercise, isFirst, isLast) {
                 <input type="text" class="exercise-name-input" value="${escapeAttr(exercise.name)}" placeholder="種目名">
                 <button class="btn-delete-exercise" aria-label="削除">🗑</button>
             </div>
+            ${choiceControl}
+            <button type="button" class="btn-secondary btn-add-alternative">＋このメニューに別の種目を追加</button>
             <div class="rest-timer-row">
                 <button class="btn-secondary rest-toggle-btn">レスト開始</button>
                 <span class="rest-countdown" role="button" tabindex="0">${formatTime((exercise.restMinutes ?? 2) * 60)}</span>
@@ -344,6 +352,16 @@ class GymApp {
         document.getElementById('timerPauseBtn').style.display = 'none';
 
         this.renderExerciseList(dayIndex);
+        const draft = storage.getDraft(dayIndex);
+        let notice = document.getElementById('draftNotice');
+        if (!notice) {
+            notice = document.createElement('div');
+            notice.id = 'draftNotice';
+            notice.className = 'draft-notice';
+            document.getElementById('exerciseList')?.before(notice);
+        }
+        notice.textContent = draft ? '✅ 前回の入力を復元しました（入力中は自動保存）' : '💾 入力内容は自動保存されます';
+        notice.hidden = false;
     }
 
     renderExerciseList(dayIndex) {
@@ -366,6 +384,18 @@ class GymApp {
         }
 
         container.innerHTML = exercises.map((ex, idx) => buildExerciseCardHTML(dayIndex, ex, idx === 0, idx === exercises.length - 1)).join('');
+
+        const draft = storage.getDraft(dayIndex);
+        if (draft) {
+            container.querySelectorAll('.exercise-record').forEach(card => {
+                const values = draft[card.querySelector('.exercise-name-input')?.value.trim()];
+                if (!values) return;
+                if (card.querySelector('.weight-input')) card.querySelector('.weight-input').value = values.weight || '';
+                card.querySelectorAll('.reps-input').forEach((input, i) => {
+                    input.value = values.sets?.[i]?.reps ?? values.sets?.[i] ?? '';
+                });
+            });
+        }
 
         exercises.forEach(ex => {
             if (!this.restTimers[ex.id]) {
@@ -398,6 +428,14 @@ class GymApp {
 
         nameInput.addEventListener('change', (e) => {
             storage.updateExercise(dayIndex, exerciseId, { name: e.target.value.trim() });
+        });
+
+        cardEl.querySelector('.exercise-choice')?.addEventListener('change', () => this.saveDraftFromScreen());
+        cardEl.querySelector('.btn-add-alternative')?.addEventListener('click', () => {
+            const name = prompt('追加する種目名を入力してください');
+            if (!name?.trim()) return;
+            storage.addAlternativeToExercise(dayIndex, exerciseId, name.trim());
+            this.renderExerciseList(dayIndex);
         });
 
         cardEl.querySelector('.rest-toggle-btn').addEventListener('click', () => {
@@ -620,6 +658,26 @@ class GymApp {
                 }
             });
         });
+
+        container.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', () => this.saveDraftFromScreen());
+            input.addEventListener('change', () => this.saveDraftFromScreen());
+        });
+    }
+
+    saveDraftFromScreen() {
+        const draft = {};
+        document.querySelectorAll('#exerciseList .exercise-record').forEach(card => {
+            const name = card.querySelector('.exercise-choice')?.value || card.querySelector('.exercise-name-input')?.value.trim();
+            if (!name) return;
+            const perSet = !!card.querySelector('.per-set-weight-checkbox')?.checked;
+            const rows = [...card.querySelectorAll('.set-input-row')];
+            draft[name] = {
+                weight: card.querySelector('.weight-input')?.value || '',
+                sets: rows.map(row => perSet ? { weight: row.querySelector('.set-weight-input')?.value || '', reps: row.querySelector('.reps-input')?.value || '' } : (row.querySelector('.reps-input')?.value || ''))
+            };
+        });
+        storage.saveDraft(this.currentDayIndex, draft);
     }
 
     updateRestTimerUI(exerciseId, rt) {
@@ -649,7 +707,7 @@ class GymApp {
         let hasAnyInput = false;
 
         cards.forEach(card => {
-            const name = card.querySelector('.exercise-name-input').value.trim();
+            const name = card.querySelector('.exercise-choice')?.value || card.querySelector('.exercise-name-input').value.trim();
             if (!name) return;
 
             const isPerSetWeight = !!card.querySelector('.per-set-weight-checkbox')?.checked;
@@ -685,6 +743,7 @@ class GymApp {
         this.clearRestTimers();
         this.releaseWakeLock();
         storage.saveRecord(new Date(), this.currentDayIndex, exerciseRecords);
+        storage.clearDraft(this.currentDayIndex);
 
         const summary = this.buildSessionSummary(exerciseRecords);
         this.showSessionSummary(summary);

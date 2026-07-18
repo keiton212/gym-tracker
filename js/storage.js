@@ -3,6 +3,7 @@ const STORAGE_KEYS = {
     RECORDS: 'gym_records',
     TIMER_SETTINGS: 'gym_timer_settings',
     LAST_EXPORT_AT: 'gym_last_export_at'
+    ,DRAFTS: 'gym_training_drafts'
 };
 
 const DEFAULT_TIMER_SETTINGS = {
@@ -144,6 +145,17 @@ class Storage {
         }
     }
 
+    addAlternativeToExercise(dayIndex, exerciseId, name) {
+        const menu = this.getMenu();
+        const exercise = menu[dayIndex]?.exercises?.find(e => e.id === exerciseId);
+        if (!exercise || !name) return;
+        exercise.alternatives = Array.isArray(exercise.alternatives) ? exercise.alternatives : [];
+        if (name !== exercise.name && !exercise.alternatives.includes(name)) {
+            exercise.alternatives.push(name);
+            this.setMenu(menu);
+        }
+    }
+
     deleteExercise(dayIndex, exerciseId) {
         const menu = this.getMenu();
         menu[dayIndex].exercises = menu[dayIndex].exercises.filter(e => e.id !== exerciseId);
@@ -267,6 +279,23 @@ class Storage {
 
     setLastExportAt(timestamp) {
         localStorage.setItem(STORAGE_KEYS.LAST_EXPORT_AT, String(timestamp));
+    }
+
+    getDraft(dayIndex) {
+        const drafts = JSON.parse(localStorage.getItem(STORAGE_KEYS.DRAFTS) || '{}');
+        return drafts[dayIndex] || null;
+    }
+
+    saveDraft(dayIndex, draft) {
+        const drafts = JSON.parse(localStorage.getItem(STORAGE_KEYS.DRAFTS) || '{}');
+        drafts[dayIndex] = draft;
+        localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts));
+    }
+
+    clearDraft(dayIndex) {
+        const drafts = JSON.parse(localStorage.getItem(STORAGE_KEYS.DRAFTS) || '{}');
+        delete drafts[dayIndex];
+        localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts));
     }
 }
 

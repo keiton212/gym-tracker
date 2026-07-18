@@ -95,7 +95,12 @@ class FocusMode {
 
     start(dayIndex) {
         this.dayIndex = dayIndex;
-        this.exercises = storage.getExercisesForDay(dayIndex);
+        this.exercises = storage.getExercisesForDay(dayIndex).map(ex => ({ ...ex }));
+        this.exercises.forEach(ex => {
+            const card = document.querySelector(`.exercise-record[data-exercise-id="${ex.id}"]`);
+            const selected = card?.querySelector('.exercise-choice')?.value;
+            if (selected) ex.name = selected;
+        });
         this.steps = [];
         this.exercises.forEach((ex, ei) => {
             const setCount = Math.max(1, parseInt(ex.sets) || 1);
