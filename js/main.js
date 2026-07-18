@@ -138,8 +138,11 @@ function buildExerciseCardHTML(dayIndex, exercise, isFirst, isLast) {
                 <button class="btn-secondary rest-toggle-btn">レスト開始</button>
                 <span class="rest-countdown" role="button" tabindex="0">${formatTime((exercise.restMinutes ?? 2) * 60)}</span>
             </div>
-            <div class="exercise-body">
-                ${buildExerciseBodyHTML(dayIndex, exercise)}
+            <div class="exercise-variants">
+                ${choices.map((name, index) => `<div class="exercise-variant ${index === 0 ? 'active' : ''}" data-variant-name="${escapeAttr(name)}">
+                    ${index > 0 ? `<div class="exercise-variant-or">OR ${escapeAttr(name)}</div>` : ''}
+                    <div class="exercise-body">${buildExerciseBodyHTML(dayIndex, { ...exercise, name })}</div>
+                </div>`).join('')}
             </div>
             <button type="button" class="btn-secondary btn-add-alternative">＋このメニューに別の種目を追加</button>
         </div>
@@ -433,6 +436,7 @@ class GymApp {
         cardEl.querySelectorAll('.exercise-choice-btn').forEach(btn => btn.addEventListener('click', () => {
             cardEl.querySelectorAll('.exercise-choice-btn').forEach(item => item.classList.remove('active'));
             btn.classList.add('active');
+            cardEl.querySelectorAll('.exercise-variant').forEach(variant => variant.classList.toggle('active', variant.dataset.variantName === btn.dataset.choice));
             this.saveDraftFromScreen();
         }));
         cardEl.querySelector('.btn-add-alternative')?.addEventListener('click', () => {
@@ -504,8 +508,11 @@ class GymApp {
     }
 
     attachBodyListeners(dayIndex, cardEl, nameInput) {
+        cardEl.querySelectorAll('.exercise-body').forEach(bodyEl => this.attachBodyListenersToElement(dayIndex, cardEl, nameInput, bodyEl));
+    }
+
+    attachBodyListenersToElement(dayIndex, cardEl, nameInput, bodyEl) {
         const exerciseId = cardEl.dataset.exerciseId;
-        const bodyEl = cardEl.querySelector('.exercise-body');
 
         const weightInput = bodyEl.querySelector('.weight-input');
         if (weightInput) {
@@ -528,7 +535,7 @@ class GymApp {
         const applySetsCount = (newCount) => {
             const clamped = Math.max(1, Math.min(10, newCount));
             storage.updateExercise(dayIndex, exerciseId, { sets: String(clamped) });
-            this.rerenderExerciseBody(dayIndex, cardEl, nameInput);
+            this.rerenderExerciseBody(dayIndex, cardEl, nameInput, bodyEl);
         };
 
         setsInput.addEventListener('change', (e) => {
@@ -551,12 +558,12 @@ class GymApp {
         this.attachSetInputListeners(bodyEl.querySelector('.set-inputs'));
     }
 
-    rerenderExerciseBody(dayIndex, cardEl, nameInput) {
+    rerenderExerciseBody(dayIndex, cardEl, nameInput, targetBodyEl) {
         const exerciseId = cardEl.dataset.exerciseId;
         const exercise = storage.getExercisesForDay(dayIndex).find(e => e.id === exerciseId);
         if (!exercise) return;
 
-        const bodyEl = cardEl.querySelector('.exercise-body');
+        const bodyEl = targetBodyEl || cardEl.querySelector('.exercise-body');
         const liveValues = this.captureLiveSetValues(bodyEl);
         bodyEl.innerHTML = buildExerciseBodyHTML(dayIndex, exercise, liveValues);
         this.attachBodyListeners(dayIndex, cardEl, nameInput);
@@ -715,9 +722,10 @@ class GymApp {
             if (!name) return;
 
             const isPerSetWeight = !!card.querySelector('.per-set-weight-checkbox')?.checked;
+            const activeVariant = card.querySelector('.exercise-variant.active') || card;
 
             if (isPerSetWeight) {
-                const rows = card.querySelectorAll('.set-inputs .set-input-row');
+                const rows = activeVariant.querySelectorAll('.set-inputs .set-input-row');
                 const sets = [];
                 rows.forEach(row => {
                     const weight = row.querySelector('.set-weight-input')?.value || '';
@@ -727,8 +735,8 @@ class GymApp {
                 });
                 exerciseRecords[name] = { perSetWeight: true, sets, setCount: rows.length };
             } else {
-                const weight = card.querySelector('.weight-input')?.value || '';
-                const setInputs = card.querySelectorAll('.set-inputs input[data-set]');
+                const weight = activeVariant.querySelector('.weight-input')?.value || '';
+                const setInputs = activeVariant.querySelectorAll('.set-inputs input[data-set]');
                 const sets = [];
                 setInputs.forEach(input => {
                     if (input.value !== '') hasAnyInput = true;

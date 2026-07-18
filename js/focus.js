@@ -38,8 +38,9 @@ class FocusMode {
             const row = this.currentRow();
             if (!card || !row) return;
 
-            const isPerSetWeight = !!card.querySelector('.per-set-weight-checkbox')?.checked;
-            const weightInput = isPerSetWeight ? row.querySelector('.set-weight-input') : card.querySelector('.weight-input');
+            const variant = card.querySelector('.exercise-variant.active') || card;
+            const isPerSetWeight = !!variant.querySelector('.per-set-weight-checkbox')?.checked;
+            const weightInput = isPerSetWeight ? row.querySelector('.set-weight-input') : variant.querySelector('.weight-input');
             const next = Math.max(0, parseFloat(el.textContent) || 0);
 
             weightInput.value = next;
@@ -100,7 +101,10 @@ class FocusMode {
         this.exercises.forEach(ex => {
             const card = document.querySelector(`.exercise-record[data-exercise-id="${ex.id}"]`);
             const selected = card?.querySelector('.exercise-choice-btn.active')?.dataset.choice;
-            if (selected) ex.name = selected;
+            if (selected) {
+                ex.name = selected;
+                card?.querySelectorAll('.exercise-variant').forEach(variant => variant.classList.toggle('active', variant.dataset.variantName === selected));
+            }
         });
         this.steps = [];
         this.exercises.forEach((ex, ei) => {
@@ -140,7 +144,8 @@ class FocusMode {
     currentRow() {
         const step = this.steps[this.stepIndex];
         const card = this.currentCardEl();
-        const repsInput = card?.querySelector(`.reps-input[data-set="${step.si}"]`);
+        const variant = card?.querySelector('.exercise-variant.active') || card;
+        const repsInput = variant?.querySelector(`.reps-input[data-set="${step.si}"]`);
         return repsInput ? repsInput.closest('.set-input-row') : null;
     }
 
@@ -151,9 +156,10 @@ class FocusMode {
         const row = this.currentRow();
         if (!card || !row) return;
 
-        const isPerSetWeight = !!card.querySelector('.per-set-weight-checkbox')?.checked;
+        const variant = card.querySelector('.exercise-variant.active') || card;
+        const isPerSetWeight = !!variant.querySelector('.per-set-weight-checkbox')?.checked;
         const repsInput = row.querySelector('.reps-input');
-        const weightInput = isPerSetWeight ? row.querySelector('.set-weight-input') : card.querySelector('.weight-input');
+        const weightInput = isPerSetWeight ? row.querySelector('.set-weight-input') : variant.querySelector('.weight-input');
 
         const repsVal = repsInput.value !== '' ? repsInput.value : (repsInput.dataset.lastReps || repsInput.dataset.suggestedReps || '0');
         const weightVal = weightInput.value !== '' ? weightInput.value : (weightInput.dataset.lastWeight || '0');
@@ -170,6 +176,7 @@ class FocusMode {
                 ex.name = btn.textContent;
                 const trainingCard = document.querySelector(`.exercise-record[data-exercise-id="${ex.id}"]`);
                 trainingCard?.querySelectorAll('.exercise-choice-btn').forEach(item => item.classList.toggle('active', item.dataset.choice === ex.name));
+                trainingCard?.querySelectorAll('.exercise-variant').forEach(item => item.classList.toggle('active', item.dataset.variantName === ex.name));
                 this.render();
             }));
         }
@@ -194,11 +201,12 @@ class FocusMode {
     adjustWeight(direction) {
         const card = this.currentCardEl();
         if (!card) return;
-        const isPerSetWeight = !!card.querySelector('.per-set-weight-checkbox')?.checked;
+        const variant = card.querySelector('.exercise-variant.active') || card;
+        const isPerSetWeight = !!variant.querySelector('.per-set-weight-checkbox')?.checked;
         if (isPerSetWeight && !this.currentRow()) return;
         const btns = isPerSetWeight
             ? this.currentRow().querySelectorAll('.btn-weight-step-set')
-            : card.querySelectorAll('.btn-weight-step');
+            : variant.querySelectorAll('.btn-weight-step');
         const btn = direction < 0 ? btns[0] : btns[1];
         btn?.click();
         this.render();
@@ -219,9 +227,10 @@ class FocusMode {
         const row = this.currentRow();
         if (!card || !row) return;
 
-        const isPerSetWeight = !!card.querySelector('.per-set-weight-checkbox')?.checked;
+        const variant = card.querySelector('.exercise-variant.active') || card;
+        const isPerSetWeight = !!variant.querySelector('.per-set-weight-checkbox')?.checked;
         const repsInput = row.querySelector('.reps-input');
-        const weightInput = isPerSetWeight ? row.querySelector('.set-weight-input') : card.querySelector('.weight-input');
+        const weightInput = isPerSetWeight ? row.querySelector('.set-weight-input') : variant.querySelector('.weight-input');
 
         // 未入力のまま完了した場合は、前回値（無ければ目標回数レンジの下限）を今回の記録として確定させる
         if (repsInput.value === '' && (repsInput.dataset.lastReps || repsInput.dataset.suggestedReps)) {
