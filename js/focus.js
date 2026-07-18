@@ -235,6 +235,9 @@ class FocusMode {
         const exerciseId = card.dataset.exerciseId;
 
         if (this.stepIndex + 1 < this.steps.length) {
+            Object.entries(this.app.restTimers).forEach(([id, restTimer]) => {
+                if (id !== exerciseId) restTimer.stop();
+            });
             this.app.restTimers[exerciseId]?.start();
             this.stepIndex++;
             storage.setFocusProgress(this.dayIndex, this.stepIndex);

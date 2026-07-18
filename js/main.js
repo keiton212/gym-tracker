@@ -134,7 +134,6 @@ function buildExerciseCardHTML(dayIndex, exercise, isFirst, isLast) {
                 <button class="btn-delete-exercise" aria-label="削除">🗑</button>
             </div>
             ${choiceControl}
-            <button type="button" class="btn-secondary btn-add-alternative">＋このメニューに別の種目を追加</button>
             <div class="rest-timer-row">
                 <button class="btn-secondary rest-toggle-btn">レスト開始</button>
                 <span class="rest-countdown" role="button" tabindex="0">${formatTime((exercise.restMinutes ?? 2) * 60)}</span>
@@ -142,6 +141,7 @@ function buildExerciseCardHTML(dayIndex, exercise, isFirst, isLast) {
             <div class="exercise-body">
                 ${buildExerciseBodyHTML(dayIndex, exercise)}
             </div>
+            <button type="button" class="btn-secondary btn-add-alternative">＋このメニューに別の種目を追加</button>
         </div>
     `;
 }

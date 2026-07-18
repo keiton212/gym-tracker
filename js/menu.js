@@ -9,7 +9,6 @@ function buildMenuEditCardHTML(exercise, isFirst, isLast) {
                 <input type="text" class="exercise-name-input" value="${escapeAttr(exercise.name)}" placeholder="種目名">
                 <button class="btn-delete-exercise" aria-label="削除">🗑</button>
             </div>
-            <button type="button" class="btn-secondary btn-menu-add-alternative">＋このメニュー枠に別の種目を追加</button>
             <div class="rest-timer-row">
                 <label>レスト</label>
                 <span class="rest-countdown" role="button" tabindex="0">${exercise.restMinutes ?? 2}分</span>
@@ -40,6 +39,7 @@ function buildMenuEditCardHTML(exercise, isFirst, isLast) {
             <label class="per-set-weight-toggle">
                 <input type="checkbox" class="per-set-weight-checkbox" ${exercise.perSetWeight ? 'checked' : ''}> セットごとに重量を変える
             </label>
+            <button type="button" class="btn-secondary btn-menu-add-alternative">＋このメニュー枠に別の種目を追加</button>
         </div>
     `;
 }
