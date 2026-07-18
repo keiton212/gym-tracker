@@ -7,6 +7,7 @@ class FocusMode {
         this.exercises = [];
         this.steps = [];
         this.stepIndex = 0;
+        this.selectedNames = {};
         this.pollInterval = null;
         this.attachStaticListeners();
     }
@@ -98,7 +99,7 @@ class FocusMode {
         this.exercises = storage.getExercisesForDay(dayIndex).map(ex => ({ ...ex }));
         this.exercises.forEach(ex => {
             const card = document.querySelector(`.exercise-record[data-exercise-id="${ex.id}"]`);
-            const selected = card?.querySelector('.exercise-choice')?.value;
+            const selected = card?.querySelector('.exercise-choice-btn.active')?.dataset.choice;
             if (selected) ex.name = selected;
         });
         this.steps = [];
@@ -114,7 +115,7 @@ class FocusMode {
             return;
         }
 
-        this.stepIndex = 0;
+        this.stepIndex = Math.min(storage.getFocusProgress(dayIndex), Math.max(0, this.steps.length - 1));
         this.app.switchScreen('focusScreen');
         this.render();
 
@@ -158,6 +159,20 @@ class FocusMode {
         const weightVal = weightInput.value !== '' ? weightInput.value : (weightInput.dataset.lastWeight || '0');
 
         document.getElementById('focusExerciseName').textContent = ex.name || '種目';
+        const choiceBox = document.getElementById('focusChoiceButtons');
+        const choices = [ex.name, ...(ex.alternatives || [])].filter(Boolean);
+        if (choiceBox) {
+            choiceBox.innerHTML = choices.length > 1
+                ? choices.map(name => `<button type="button" class="focus-choice-btn ${(this.selectedNames[ex.id] || ex.name) === name ? 'active' : ''}">${escapeAttr(name)}</button>`).join('')
+                : '';
+            choiceBox.querySelectorAll('.focus-choice-btn').forEach(btn => btn.addEventListener('click', () => {
+                this.selectedNames[ex.id] = btn.textContent;
+                ex.name = btn.textContent;
+                const trainingCard = document.querySelector(`.exercise-record[data-exercise-id="${ex.id}"]`);
+                trainingCard?.querySelectorAll('.exercise-choice-btn').forEach(item => item.classList.toggle('active', item.dataset.choice === ex.name));
+                this.render();
+            }));
+        }
         document.getElementById('focusSetLabel').textContent = `セット ${step.si + 1} / ${step.setCount}`;
         document.getElementById('focusWeightValue').textContent = weightVal;
         document.getElementById('focusRepsValue').textContent = repsVal;
@@ -222,6 +237,7 @@ class FocusMode {
         if (this.stepIndex + 1 < this.steps.length) {
             this.app.restTimers[exerciseId]?.start();
             this.stepIndex++;
+            storage.setFocusProgress(this.dayIndex, this.stepIndex);
             this.render();
         } else {
             this.finish();
@@ -231,6 +247,7 @@ class FocusMode {
     goBack() {
         if (this.stepIndex === 0) return;
         this.stepIndex--;
+        storage.setFocusProgress(this.dayIndex, this.stepIndex);
         this.render();
     }
 
@@ -263,6 +280,7 @@ class FocusMode {
     }
 
     exit() {
+        storage.setFocusProgress(this.dayIndex, this.stepIndex);
         lockScreenControl.stop();
         if (this.pollInterval) {
             clearInterval(this.pollInterval);
@@ -272,6 +290,7 @@ class FocusMode {
     }
 
     finish() {
+        storage.clearFocusProgress(this.dayIndex);
         lockScreenControl.stop();
         if (this.pollInterval) {
             clearInterval(this.pollInterval);

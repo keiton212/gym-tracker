@@ -9,6 +9,7 @@ function buildMenuEditCardHTML(exercise, isFirst, isLast) {
                 <input type="text" class="exercise-name-input" value="${escapeAttr(exercise.name)}" placeholder="種目名">
                 <button class="btn-delete-exercise" aria-label="削除">🗑</button>
             </div>
+            <button type="button" class="btn-secondary btn-menu-add-alternative">＋このメニュー枠に別の種目を追加</button>
             <div class="rest-timer-row">
                 <label>レスト</label>
                 <span class="rest-countdown" role="button" tabindex="0">${exercise.restMinutes ?? 2}分</span>
@@ -101,6 +102,13 @@ class MenuEditor {
 
         nameInput.addEventListener('change', (e) => {
             storage.updateExercise(dayIndex, exerciseId, { name: e.target.value.trim() });
+        });
+
+        cardEl.querySelector('.btn-menu-add-alternative')?.addEventListener('click', () => {
+            const name = prompt('追加する種目名を入力してください');
+            if (!name?.trim()) return;
+            storage.addAlternativeToExercise(dayIndex, exerciseId, name.trim());
+            this.renderExercises();
         });
 
         const weightInput = cardEl.querySelector('.weight-input');

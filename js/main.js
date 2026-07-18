@@ -119,9 +119,9 @@ function buildExerciseBodyHTML(dayIndex, exercise, liveValues) {
 function buildExerciseCardHTML(dayIndex, exercise, isFirst, isLast) {
     const choices = [exercise.name, ...(exercise.alternatives || [])].filter(Boolean);
     const choiceControl = choices.length > 1
-        ? `<label class="exercise-choice-label">この枠で行う種目
-                <select class="exercise-choice">${choices.map(name => `<option value="${escapeAttr(name)}">${escapeAttr(name)}</option>`).join('')}</select>
-           </label>`
+        ? `<div class="exercise-choice-label">このメニュー枠で行う種目
+                <div class="exercise-choice-buttons">${choices.map((name, index) => `<button type="button" class="exercise-choice-btn ${index === 0 ? 'active' : ''}" data-choice="${escapeAttr(name)}">${escapeAttr(name)}</button>`).join('')}</div>
+           </div>`
         : '';
     return `
         <div class="exercise-record" data-exercise-id="${exercise.id}">
@@ -430,7 +430,11 @@ class GymApp {
             storage.updateExercise(dayIndex, exerciseId, { name: e.target.value.trim() });
         });
 
-        cardEl.querySelector('.exercise-choice')?.addEventListener('change', () => this.saveDraftFromScreen());
+        cardEl.querySelectorAll('.exercise-choice-btn').forEach(btn => btn.addEventListener('click', () => {
+            cardEl.querySelectorAll('.exercise-choice-btn').forEach(item => item.classList.remove('active'));
+            btn.classList.add('active');
+            this.saveDraftFromScreen();
+        }));
         cardEl.querySelector('.btn-add-alternative')?.addEventListener('click', () => {
             const name = prompt('追加する種目名を入力してください');
             if (!name?.trim()) return;
@@ -668,7 +672,7 @@ class GymApp {
     saveDraftFromScreen() {
         const draft = {};
         document.querySelectorAll('#exerciseList .exercise-record').forEach(card => {
-            const name = card.querySelector('.exercise-choice')?.value || card.querySelector('.exercise-name-input')?.value.trim();
+            const name = card.querySelector('.exercise-choice-btn.active')?.dataset.choice || card.querySelector('.exercise-name-input')?.value.trim();
             if (!name) return;
             const perSet = !!card.querySelector('.per-set-weight-checkbox')?.checked;
             const rows = [...card.querySelectorAll('.set-input-row')];
@@ -707,7 +711,7 @@ class GymApp {
         let hasAnyInput = false;
 
         cards.forEach(card => {
-            const name = card.querySelector('.exercise-choice')?.value || card.querySelector('.exercise-name-input').value.trim();
+            const name = card.querySelector('.exercise-choice-btn.active')?.dataset.choice || card.querySelector('.exercise-name-input').value.trim();
             if (!name) return;
 
             const isPerSetWeight = !!card.querySelector('.per-set-weight-checkbox')?.checked;

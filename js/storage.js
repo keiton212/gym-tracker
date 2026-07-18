@@ -3,7 +3,7 @@ const STORAGE_KEYS = {
     RECORDS: 'gym_records',
     TIMER_SETTINGS: 'gym_timer_settings',
     LAST_EXPORT_AT: 'gym_last_export_at'
-    ,DRAFTS: 'gym_training_drafts'
+    ,DRAFTS: 'gym_training_drafts', FOCUS_PROGRESS: 'gym_focus_progress'
 };
 
 const DEFAULT_TIMER_SETTINGS = {
@@ -296,6 +296,23 @@ class Storage {
         const drafts = JSON.parse(localStorage.getItem(STORAGE_KEYS.DRAFTS) || '{}');
         delete drafts[dayIndex];
         localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts));
+    }
+
+    getFocusProgress(dayIndex) {
+        const data = JSON.parse(localStorage.getItem(STORAGE_KEYS.FOCUS_PROGRESS) || '{}');
+        return Number.isInteger(data[dayIndex]) ? data[dayIndex] : 0;
+    }
+
+    setFocusProgress(dayIndex, stepIndex) {
+        const data = JSON.parse(localStorage.getItem(STORAGE_KEYS.FOCUS_PROGRESS) || '{}');
+        data[dayIndex] = stepIndex;
+        localStorage.setItem(STORAGE_KEYS.FOCUS_PROGRESS, JSON.stringify(data));
+    }
+
+    clearFocusProgress(dayIndex) {
+        const data = JSON.parse(localStorage.getItem(STORAGE_KEYS.FOCUS_PROGRESS) || '{}');
+        delete data[dayIndex];
+        localStorage.setItem(STORAGE_KEYS.FOCUS_PROGRESS, JSON.stringify(data));
     }
 }
 
