@@ -97,7 +97,10 @@ class FocusMode {
 
     start(dayIndex) {
         this.dayIndex = dayIndex;
-        this.exercises = storage.getExercisesForDay(dayIndex).map(ex => ({ ...ex }));
+        this.exercises = storage.getExercisesForDay(dayIndex).map(ex => ({
+            ...ex,
+            choiceNames: [ex.name, ...(ex.alternatives || [])].filter(Boolean)
+        }));
         this.exercises.forEach(ex => {
             const card = document.querySelector(`.exercise-record[data-exercise-id="${ex.id}"]`);
             const selected = card?.querySelector('.exercise-choice-btn.active')?.dataset.choice;
@@ -165,21 +168,34 @@ class FocusMode {
         const weightVal = weightInput.value !== '' ? weightInput.value : (weightInput.dataset.lastWeight || '0');
 
         document.getElementById('focusExerciseName').textContent = ex.name || '種目';
-        const choiceBox = document.getElementById('focusChoiceButtons');
-        const choices = [ex.name, ...(ex.alternatives || [])].filter(Boolean);
-        if (choiceBox) {
-            choiceBox.innerHTML = choices.length > 1
-                ? choices.map(name => `<button type="button" class="focus-choice-btn ${(this.selectedNames[ex.id] || ex.name) === name ? 'active' : ''}">${escapeAttr(name)}</button>`).join('')
+        const choices = ex.choiceNames && ex.choiceNames.length ? ex.choiceNames : [ex.name, ...(ex.alternatives || [])].filter(Boolean);
+        const hasChoice = choices.length > 1;
+        const needsChoice = hasChoice && !this.selectedNames[ex.id];
+        document.getElementById('focusScreen')?.classList.toggle('choosing', needsChoice);
+
+        const selectChoice = (name) => {
+            this.selectedNames[ex.id] = name;
+            ex.name = name;
+            const trainingCard = document.querySelector(`.exercise-record[data-exercise-id="${ex.id}"]`);
+            trainingCard?.querySelectorAll('.exercise-choice-btn').forEach(item => item.classList.toggle('active', item.dataset.choice === ex.name));
+            trainingCard?.querySelectorAll('.exercise-variant').forEach(item => item.classList.toggle('active', item.dataset.variantName === ex.name));
+            this.render();
+        };
+
+        const splitBox = document.getElementById('focusChoiceSplitOptions');
+        if (splitBox) {
+            splitBox.innerHTML = needsChoice
+                ? choices.map(name => `<button type="button" class="focus-choice-split-option" data-choice="${escapeAttr(name)}">${escapeAttr(name)}</button>`).join('')
                 : '';
-            choiceBox.querySelectorAll('.focus-choice-btn').forEach(btn => btn.addEventListener('click', () => {
-                this.selectedNames[ex.id] = btn.textContent;
-                ex.name = btn.textContent;
-                const trainingCard = document.querySelector(`.exercise-record[data-exercise-id="${ex.id}"]`);
-                trainingCard?.querySelectorAll('.exercise-choice-btn').forEach(item => item.classList.toggle('active', item.dataset.choice === ex.name));
-                trainingCard?.querySelectorAll('.exercise-variant').forEach(item => item.classList.toggle('active', item.dataset.variantName === ex.name));
-                this.render();
-            }));
+            splitBox.querySelectorAll('.focus-choice-split-option').forEach(btn => btn.addEventListener('click', () => selectChoice(btn.dataset.choice)));
         }
+
+        const nameEl = document.getElementById('focusExerciseName');
+        nameEl.classList.toggle('focus-exercise-name-changeable', hasChoice);
+        nameEl.onclick = hasChoice ? () => { delete this.selectedNames[ex.id]; this.render(); } : null;
+
+        const hintEl = document.getElementById('focusChoiceHint');
+        if (hintEl) hintEl.textContent = hasChoice ? 'タップして種目を変更' : '';
         document.getElementById('focusSetLabel').textContent = `セット ${step.si + 1} / ${step.setCount}`;
         document.getElementById('focusWeightValue').textContent = weightVal;
         document.getElementById('focusRepsValue').textContent = repsVal;
@@ -198,7 +214,12 @@ class FocusMode {
         });
     }
 
+    isChoosing() {
+        return !!document.getElementById('focusScreen')?.classList.contains('choosing');
+    }
+
     adjustWeight(direction) {
+        if (this.isChoosing()) return;
         const card = this.currentCardEl();
         if (!card) return;
         const variant = card.querySelector('.exercise-variant.active') || card;
@@ -213,6 +234,7 @@ class FocusMode {
     }
 
     adjustReps(direction) {
+        if (this.isChoosing()) return;
         const row = this.currentRow();
         if (!row) return;
         const btns = row.querySelectorAll('.btn-reps-step');
@@ -222,6 +244,7 @@ class FocusMode {
     }
 
     completeStep() {
+        if (this.isChoosing()) return;
         const step = this.steps[this.stepIndex];
         const card = this.currentCardEl();
         const row = this.currentRow();
