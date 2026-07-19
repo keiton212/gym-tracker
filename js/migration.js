@@ -186,3 +186,55 @@
         console.error('Migration v5 failed:', e);
     }
 })();
+
+// 土曜日メニューをユーザー指定の新しい構成に再編成する
+(function () {
+    const FLAG6 = 'gym_migration_saturday_rebuild_v6';
+    if (localStorage.getItem(FLAG6)) return;
+
+    try {
+        const dayIndex = 6; // 土曜日
+        const menu = storage.getMenu();
+        if (!menu[dayIndex]) {
+            localStorage.setItem(FLAG6, '1');
+            return;
+        }
+        if (!menu[dayIndex].exercises) menu[dayIndex].exercises = [];
+        const oldExercises = menu[dayIndex].exercises;
+
+        function findByName(name) {
+            return oldExercises.find(e => e.name === name);
+        }
+
+        function buildExercise(name, sets, extra) {
+            const existing = findByName(name);
+            if (existing) {
+                return Object.assign({}, existing, { sets: String(sets) }, extra || {});
+            }
+            return Object.assign({
+                id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+                name,
+                weight: '',
+                sets: String(sets),
+                repsRange: '',
+                restMinutes: 2
+            }, extra || {});
+        }
+
+        menu[dayIndex].exercises = [
+            buildExercise('アイソラテラルロー', 3),
+            buildExercise('懸垂', 3),
+            buildExercise('ベントオーバーロー', 3, { alternatives: ['プーリーロー'] }),
+            buildExercise('ラットプルダウン ミドルパラレル', 3),
+            buildExercise('チェストサポートロウ', 3),
+            buildExercise('ケーブルプルオーバー', 2),
+            buildExercise('インクラインダンベルカール', 3),
+            buildExercise('ハンマーカール', 2)
+        ];
+
+        storage.setMenu(menu);
+        localStorage.setItem(FLAG6, '1');
+    } catch (e) {
+        console.error('Migration v6 failed:', e);
+    }
+})();
