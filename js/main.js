@@ -138,13 +138,16 @@ function buildExerciseCardHTML(dayIndex, exercise, isFirst, isLast) {
                 <button class="btn-secondary rest-toggle-btn">レスト開始</button>
                 <span class="rest-countdown" role="button" tabindex="0">${formatTime((exercise.restMinutes ?? 2) * 60)}</span>
             </div>
+            <div class="rest-preset-row">
+                ${REST_PRESETS.map(m => `<button type="button" class="rest-preset-btn ${(exercise.restMinutes ?? 2) === m ? 'active' : ''}" data-minutes="${m}">${m}分</button>`).join('')}
+            </div>
             <div class="exercise-variants">
                 ${choices.map((name, index) => `<div class="exercise-variant ${index === 0 ? 'active' : ''}" data-variant-name="${escapeAttr(name)}">
                     ${index > 0 ? `<div class="exercise-variant-or">
                         <span class="exercise-variant-or-label">OR</span>
                         <input type="text" class="exercise-name-input exercise-alt-name-input" data-alt-index="${index - 1}" value="${escapeAttr(name)}" placeholder="種目名">
                     </div>` : ''}
-                    <div class="exercise-body">${buildExerciseBodyHTML(dayIndex, { ...exercise, name })}</div>
+                    <div class="exercise-body">${buildExerciseBodyHTML(dayIndex, { ...exercise, name, weight: getVariantWeight(exercise, name) })}</div>
                 </div>`).join('')}
             </div>
             <button type="button" class="btn-secondary btn-add-alternative">＋このメニューに別の種目を追加</button>
@@ -393,12 +396,18 @@ class GymApp {
 
         const draft = storage.getDraft(dayIndex);
         if (draft) {
-            container.querySelectorAll('.exercise-record').forEach(card => {
-                const values = draft[card.querySelector('.exercise-name-input')?.value.trim()];
+            // 下書きは種目名キーで持っているので、対応する種目（メイン/代替）のフォームだけに復元する
+            container.querySelectorAll('.exercise-record .exercise-variant').forEach(variantEl => {
+                const values = draft[variantEl.dataset.variantName];
                 if (!values) return;
-                if (card.querySelector('.weight-input')) card.querySelector('.weight-input').value = values.weight || '';
-                card.querySelectorAll('.reps-input').forEach((input, i) => {
+                const weightInput = variantEl.querySelector('.weight-input');
+                if (weightInput && values.weight !== '' && values.weight !== undefined) weightInput.value = values.weight;
+                variantEl.querySelectorAll('.reps-input').forEach((input, i) => {
                     input.value = values.sets?.[i]?.reps ?? values.sets?.[i] ?? '';
+                });
+                variantEl.querySelectorAll('.set-weight-input').forEach((input, i) => {
+                    const w = values.sets?.[i]?.weight;
+                    if (w !== undefined && w !== '') input.value = w;
                 });
             });
         }
@@ -461,6 +470,16 @@ class GymApp {
 
         cardEl.querySelector('.rest-toggle-btn').addEventListener('click', () => {
             this.restTimers[exerciseId]?.toggle();
+        });
+
+        // レスト時間のワンタップ変更（カウントダウン中に押した場合は停止して新しい時間にリセット）
+        cardEl.querySelectorAll('.rest-preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const minutes = parseFloat(btn.dataset.minutes);
+                storage.updateExercise(dayIndex, exerciseId, { restMinutes: minutes });
+                this.restTimers[exerciseId]?.setMinutes(minutes);
+                cardEl.querySelectorAll('.rest-preset-btn').forEach(b => b.classList.toggle('active', b === btn));
+            });
         });
 
         const restCountdownEl = cardEl.querySelector('.rest-countdown');
@@ -526,11 +545,13 @@ class GymApp {
 
     attachBodyListenersToElement(dayIndex, cardEl, nameInput, bodyEl) {
         const exerciseId = cardEl.dataset.exerciseId;
+        // どの種目（メイン/代替）のフォームかを特定し、重量はその種目にだけ保存する
+        const variantName = bodyEl.closest('.exercise-variant')?.dataset.variantName || '';
 
         const weightInput = bodyEl.querySelector('.weight-input');
         if (weightInput) {
             weightInput.addEventListener('change', (e) => {
-                storage.updateExercise(dayIndex, exerciseId, { weight: e.target.value });
+                storage.updateExerciseVariantWeight(dayIndex, exerciseId, variantName, e.target.value);
             });
 
             bodyEl.querySelectorAll('.btn-weight-step').forEach(btn => {
@@ -539,7 +560,7 @@ class GymApp {
                     const current = parseFloat(weightInput.value) || 0;
                     const next = Math.max(0, Math.round((current + delta) * 100) / 100);
                     weightInput.value = next;
-                    storage.updateExercise(dayIndex, exerciseId, { weight: String(next) });
+                    storage.updateExerciseVariantWeight(dayIndex, exerciseId, variantName, String(next));
                 });
             });
         }
@@ -548,7 +569,7 @@ class GymApp {
         const applySetsCount = (newCount) => {
             const clamped = Math.max(1, Math.min(10, newCount));
             storage.updateExercise(dayIndex, exerciseId, { sets: String(clamped) });
-            this.rerenderExerciseBody(dayIndex, cardEl, nameInput, bodyEl);
+            this.rerenderExerciseBody(dayIndex, cardEl, nameInput);
         };
 
         setsInput.addEventListener('change', (e) => {
@@ -571,15 +592,21 @@ class GymApp {
         this.attachSetInputListeners(bodyEl.querySelector('.set-inputs'));
     }
 
-    rerenderExerciseBody(dayIndex, cardEl, nameInput, targetBodyEl) {
+    // セット数やセットごと重量の切替は全種目（メイン/代替）で共有しているため、
+    // カード内の全フォームをそれぞれの種目名・重量で描き直す
+    rerenderExerciseBody(dayIndex, cardEl, nameInput) {
         const exerciseId = cardEl.dataset.exerciseId;
         const exercise = storage.getExercisesForDay(dayIndex).find(e => e.id === exerciseId);
         if (!exercise) return;
 
-        const bodyEl = targetBodyEl || cardEl.querySelector('.exercise-body');
-        const liveValues = this.captureLiveSetValues(bodyEl);
-        bodyEl.innerHTML = buildExerciseBodyHTML(dayIndex, exercise, liveValues);
-        this.attachBodyListeners(dayIndex, cardEl, nameInput);
+        cardEl.querySelectorAll('.exercise-variant').forEach(variantEl => {
+            const bodyEl = variantEl.querySelector('.exercise-body');
+            if (!bodyEl) return;
+            const name = variantEl.dataset.variantName || exercise.name;
+            const liveValues = this.captureLiveSetValues(bodyEl);
+            bodyEl.innerHTML = buildExerciseBodyHTML(dayIndex, { ...exercise, name, weight: getVariantWeight(exercise, name) }, liveValues);
+            this.attachBodyListenersToElement(dayIndex, cardEl, nameInput, bodyEl);
+        });
     }
 
     // 現在入力中の重量・回数を、切り替え後の画面にそのまま引き継ぐために取得する
@@ -694,10 +721,12 @@ class GymApp {
         document.querySelectorAll('#exerciseList .exercise-record').forEach(card => {
             const name = card.querySelector('.exercise-choice-btn.active')?.dataset.choice || card.querySelector('.exercise-name-input')?.value.trim();
             if (!name) return;
-            const perSet = !!card.querySelector('.per-set-weight-checkbox')?.checked;
-            const rows = [...card.querySelectorAll('.set-input-row')];
+            // 選択中の種目（メイン/代替）のフォームだけを、その種目名で保存する
+            const activeVariant = card.querySelector('.exercise-variant.active') || card;
+            const perSet = !!activeVariant.querySelector('.per-set-weight-checkbox')?.checked;
+            const rows = [...activeVariant.querySelectorAll('.set-input-row')];
             draft[name] = {
-                weight: card.querySelector('.weight-input')?.value || '',
+                weight: activeVariant.querySelector('.weight-input')?.value || '',
                 sets: rows.map(row => perSet ? { weight: row.querySelector('.set-weight-input')?.value || '', reps: row.querySelector('.reps-input')?.value || '' } : (row.querySelector('.reps-input')?.value || ''))
             };
         });
@@ -718,6 +747,10 @@ class GymApp {
         if (row) {
             row.classList.toggle('rest-done', !rt.isRunning && rt.remaining === 0);
         }
+
+        card.querySelectorAll('.rest-preset-btn').forEach(btn => {
+            btn.classList.toggle('active', parseFloat(btn.dataset.minutes) * 60 === rt.duration);
+        });
     }
 
     clearRestTimers() {

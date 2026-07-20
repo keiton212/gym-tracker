@@ -145,6 +145,23 @@ class Storage {
         }
     }
 
+    // メニュー枠内の種目（メイン/代替）ごとに重量を保存する。
+    // 代替種目はメインと weight を共有せず、altWeights に種目名キーで持つ。
+    updateExerciseVariantWeight(dayIndex, exerciseId, variantName, weight) {
+        const menu = this.getMenu();
+        const exercise = menu[dayIndex]?.exercises?.find(e => e.id === exerciseId);
+        if (!exercise) return;
+
+        const isAlternative = Array.isArray(exercise.alternatives) && exercise.alternatives.includes(variantName);
+        if (isAlternative) {
+            exercise.altWeights = (exercise.altWeights && typeof exercise.altWeights === 'object') ? exercise.altWeights : {};
+            exercise.altWeights[variantName] = weight;
+        } else {
+            exercise.weight = weight;
+        }
+        this.setMenu(menu);
+    }
+
     addAlternativeToExercise(dayIndex, exerciseId, name) {
         const menu = this.getMenu();
         const exercise = menu[dayIndex]?.exercises?.find(e => e.id === exerciseId);
@@ -160,7 +177,12 @@ class Storage {
         const menu = this.getMenu();
         const exercise = menu[dayIndex]?.exercises?.find(e => e.id === exerciseId);
         if (!exercise || !newName || !Array.isArray(exercise.alternatives) || exercise.alternatives[altIndex] === undefined) return;
+        const oldName = exercise.alternatives[altIndex];
         exercise.alternatives[altIndex] = newName;
+        if (exercise.altWeights && Object.prototype.hasOwnProperty.call(exercise.altWeights, oldName)) {
+            exercise.altWeights[newName] = exercise.altWeights[oldName];
+            delete exercise.altWeights[oldName];
+        }
         this.setMenu(menu);
     }
 

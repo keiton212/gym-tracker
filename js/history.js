@@ -88,7 +88,7 @@ class History {
         });
     }
 
-    // 選択中の曜日について、種目ごとの重量推移グラフを描画する
+    // 選択中の曜日について、種目ごとの総重量（重量×回数の合計）推移グラフを描画する
     renderTrends() {
         const container = document.getElementById('historyTrends');
         if (!container) return;
@@ -103,15 +103,16 @@ class History {
         const byExercise = {};
         sessions.forEach(session => {
             Object.keys(session.exercises).forEach(name => {
-                const weight = extractDisplayWeight(session.exercises[name]);
+                const volume = calculateExerciseVolume(session.exercises[name]);
                 if (!byExercise[name]) byExercise[name] = [];
-                byExercise[name].push({ x: this.formatDate(session.date), y: weight });
+                // 自重種目など重量なしの日は0になるので、線が0に張り付かないよう欠測扱いにする
+                byExercise[name].push({ x: this.formatDate(session.date), y: volume > 0 ? volume : null });
             });
         });
 
         container.innerHTML = Object.keys(byExercise).map(name => `
             <div class="trend-card">
-                <div class="trend-title">${name}</div>
+                <div class="trend-title">${name}（総重量）</div>
                 ${buildLineChartSVG(byExercise[name])}
             </div>
         `).join('');

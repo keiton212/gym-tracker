@@ -13,6 +13,9 @@ function buildMenuEditCardHTML(exercise, isFirst, isLast) {
                 <label>レスト</label>
                 <span class="rest-countdown" role="button" tabindex="0">${exercise.restMinutes ?? 2}分</span>
             </div>
+            <div class="rest-preset-row">
+                ${REST_PRESETS.map(m => `<button type="button" class="rest-preset-btn ${(exercise.restMinutes ?? 2) === m ? 'active' : ''}" data-minutes="${m}">${m}分</button>`).join('')}
+            </div>
             <div class="exercise-record-info">
                 ${exercise.perSetWeight ? '' : `
                 <div>重量:
@@ -183,6 +186,15 @@ class MenuEditor {
                 e.preventDefault();
                 restEl.blur();
             }
+        });
+
+        cardEl.querySelectorAll('.rest-preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const minutes = parseFloat(btn.dataset.minutes);
+                storage.updateExercise(dayIndex, exerciseId, { restMinutes: minutes });
+                restEl.textContent = `${minutes}分`;
+                cardEl.querySelectorAll('.rest-preset-btn').forEach(b => b.classList.toggle('active', b === btn));
+            });
         });
 
         cardEl.querySelector('.per-set-weight-checkbox').addEventListener('change', (e) => {

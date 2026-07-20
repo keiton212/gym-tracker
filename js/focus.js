@@ -9,6 +9,9 @@ class FocusMode {
         this.stepIndex = 0;
         this.selectedNames = {};
         this.pollInterval = null;
+        // ロック画面操作（無音再生ハック）はONにした瞬間に他アプリの音楽が止まるため、
+        // 集中モードに入っただけでは起動せず、ユーザーが明示的にONにしたときだけ使う。
+        this.lockScreenActive = false;
         this.attachStaticListeners();
     }
 
@@ -21,8 +24,29 @@ class FocusMode {
         document.getElementById('focusRepsMinus')?.addEventListener('click', () => this.adjustReps(-1));
         document.getElementById('focusRepsPlus')?.addEventListener('click', () => this.adjustReps(1));
         document.getElementById('focusRestToggleBtn')?.addEventListener('click', () => this.toggleRest());
+        document.getElementById('focusLockScreenBtn')?.addEventListener('click', () => this.toggleLockScreen());
+
+        const presetBox = document.getElementById('focusRestPresets');
+        if (presetBox) {
+            presetBox.innerHTML = REST_PRESETS.map(m => `<button type="button" class="focus-rest-preset-btn" data-minutes="${m}">${m}分</button>`).join('');
+            presetBox.querySelectorAll('.focus-rest-preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => this.applyRestPreset(parseFloat(btn.dataset.minutes)));
+            });
+        }
+
         this.setupWeightTapToEdit();
         this.setupRestTapToEdit();
+    }
+
+    applyRestPreset(minutes) {
+        const card = this.currentCardEl();
+        if (!card) return;
+        const exerciseId = card.dataset.exerciseId;
+        const rt = this.app.restTimers[exerciseId];
+        if (!rt) return;
+        storage.updateExercise(this.dayIndex, exerciseId, { restMinutes: minutes });
+        rt.setMinutes(minutes);
+        this.updateRestDisplay();
     }
 
     setupWeightTapToEdit() {
@@ -123,15 +147,11 @@ class FocusMode {
         }
 
         this.stepIndex = Math.min(storage.getFocusProgress(dayIndex), Math.max(0, this.steps.length - 1));
+        this.lockScreenActive = false;
+        this.updateLockScreenButton();
         this.app.switchScreen('focusScreen');
         this.render();
 
-        lockScreenControl.start({
-            onRepsDown: () => this.adjustReps(-1),
-            onRepsUp: () => this.adjustReps(1),
-            onConfirm: () => this.completeStep(),
-            onBack: () => this.goBack()
-        });
         this.pollInterval = setInterval(() => {
             this.updateRestDisplay();
             this.updateTimerDisplay();
@@ -207,11 +227,44 @@ class FocusMode {
         this.updateRestDisplay();
         this.updateTimerDisplay();
         // 種目名が長いとロック画面で残りセット数が見切れるため、数字だけを先頭に出す
-        lockScreenControl.updateMetadata({
-            title: `${step.si + 1}/${step.setCount} ${ex.name || '種目'}`,
-            artist: `${weightVal}kg × ${repsVal}回`,
-            album: 'GymTracker'
-        });
+        if (this.lockScreenActive) {
+            lockScreenControl.updateMetadata({
+                title: `${step.si + 1}/${step.setCount} ${ex.name || '種目'}`,
+                artist: `${weightVal}kg × ${repsVal}回`,
+                album: 'GymTracker'
+            });
+        }
+    }
+
+    toggleLockScreen() {
+        if (this.lockScreenActive) {
+            this.lockScreenActive = false;
+            lockScreenControl.stop();
+        } else {
+            this.lockScreenActive = true;
+            lockScreenControl.start({
+                onRepsDown: () => this.adjustReps(-1),
+                onRepsUp: () => this.adjustReps(1),
+                onConfirm: () => this.completeStep(),
+                onBack: () => this.goBack()
+            });
+            this.render();
+        }
+        this.updateLockScreenButton();
+    }
+
+    updateLockScreenButton() {
+        const btn = document.getElementById('focusLockScreenBtn');
+        if (btn) {
+            btn.textContent = this.lockScreenActive ? '🔒 ロック画面操作: ON' : '🔓 ロック画面操作: OFF';
+            btn.classList.toggle('active', this.lockScreenActive);
+        }
+        const hint = document.getElementById('focusHint');
+        if (hint) {
+            hint.textContent = this.lockScreenActive
+                ? '💡 ロック画面の早戻し/早送りで回数±、再生ボタンで確定して次へ進めます'
+                : '🎵 音楽を流したまま記録できます。ロック画面から操作したい場合はONに（他アプリの音楽は停止します）';
+        }
     }
 
     isChoosing() {
@@ -316,10 +369,15 @@ class FocusMode {
         }
         if (toggleBtn) toggleBtn.textContent = rt?.isRunning ? '一時停止' : 'レスト開始';
         if (restRow) restRow.classList.toggle('rest-done', !!rt && !rt.isRunning && rt.remaining === 0);
+
+        document.querySelectorAll('#focusRestPresets .focus-rest-preset-btn').forEach(btn => {
+            btn.classList.toggle('active', !!rt && parseFloat(btn.dataset.minutes) * 60 === rt.duration);
+        });
     }
 
     exit() {
         storage.setFocusProgress(this.dayIndex, this.stepIndex);
+        this.lockScreenActive = false;
         lockScreenControl.stop();
         if (this.pollInterval) {
             clearInterval(this.pollInterval);
@@ -330,6 +388,7 @@ class FocusMode {
 
     finish() {
         storage.clearFocusProgress(this.dayIndex);
+        this.lockScreenActive = false;
         lockScreenControl.stop();
         if (this.pollInterval) {
             clearInterval(this.pollInterval);

@@ -1,3 +1,15 @@
+// レスト時間のワンタップ変更用プリセット（分）
+const REST_PRESETS = [1, 1.5, 2, 2.5, 3];
+
+// メニュー枠内の種目（メイン/代替）ごとの重量を取り出す。
+// 代替種目の重量は exercise.altWeights に種目名キーで保存し、未設定ならメインの重量を初期値にする。
+function getVariantWeight(exercise, name) {
+    if (Array.isArray(exercise.alternatives) && exercise.alternatives.includes(name)) {
+        return exercise.altWeights?.[name] ?? exercise.weight;
+    }
+    return exercise.weight;
+}
+
 function escapeAttr(value) {
     return String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -52,37 +64,28 @@ function sanitizeNumericContentEditable(el, allowDecimal) {
     return sanitized;
 }
 
-// 1セッション分の記録から総ボリューム（重量×回数の合計）を計算する
-function calculateSessionVolume(exercises) {
-    let totalVolume = 0;
-    Object.values(exercises || {}).forEach(rec => {
-        if (rec.perSetWeight) {
-            (rec.sets || []).forEach(s => {
-                const w = parseFloat(s?.weight) || 0;
-                const r = parseFloat(s?.reps) || 0;
-                totalVolume += w * r;
-            });
-        } else {
-            const w = parseFloat(rec.weight) || 0;
-            (rec.sets || []).forEach(s => {
-                const r = parseFloat(s) || 0;
-                totalVolume += w * r;
-            });
-        }
-    });
-    return Math.round(totalVolume);
+// 1種目分の記録から総重量（重量×回数の合計）を計算する
+function calculateExerciseVolume(rec) {
+    let volume = 0;
+    if (rec.perSetWeight) {
+        (rec.sets || []).forEach(s => {
+            const w = parseFloat(s?.weight) || 0;
+            const r = parseFloat(s?.reps) || 0;
+            volume += w * r;
+        });
+    } else {
+        const w = parseFloat(rec.weight) || 0;
+        (rec.sets || []).forEach(s => {
+            const r = parseFloat(s) || 0;
+            volume += w * r;
+        });
+    }
+    return Math.round(volume);
 }
 
-// 1種目分の記録から、その日のグラフ用の代表重量を取り出す（セットごと重量の場合は最大値）
-function extractDisplayWeight(data) {
-    if (data.perSetWeight) {
-        const weights = (data.sets || [])
-            .map(s => parseFloat(s?.weight))
-            .filter(w => !isNaN(w));
-        return weights.length ? Math.max(...weights) : null;
-    }
-    const w = parseFloat(data.weight);
-    return isNaN(w) ? null : w;
+// 1セッション分の記録から総ボリューム（重量×回数の合計）を計算する
+function calculateSessionVolume(exercises) {
+    return Object.values(exercises || {}).reduce((sum, rec) => sum + calculateExerciseVolume(rec), 0);
 }
 
 // シンプルな折れ線グラフ（重量推移など）をSVGとして生成する
