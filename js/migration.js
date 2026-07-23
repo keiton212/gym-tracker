@@ -1,3 +1,23 @@
+// 以下のマイグレーションは、開発者本人の既存データを更新するためのもの。
+// 全曜日で種目が1つもない真っさらな新規インストール（他人に配布したリンクなど）では
+// 適用対象のデータが無いため、一律スキップする。
+(function () {
+    const menu = storage.getMenu();
+    const isBlankInstall = Object.keys(menu).every(day => !(menu[day]?.exercises?.length > 0));
+    if (!isBlankInstall) return;
+
+    [
+        'gym_migration_20260711_v1',
+        'gym_migration_reorder_v2',
+        'gym_migration_ppl_labels_v3',
+        'gym_migration_weight_step_v4',
+        'gym_migration_weight_step_v5',
+        'gym_migration_saturday_rebuild_v6'
+    ].forEach(flag => {
+        if (!localStorage.getItem(flag)) localStorage.setItem(flag, '1');
+    });
+})();
+
 // 2026-07-11: 月曜日メニューをユーザー指定の内容に一度だけ更新し、
 // 本日の実績を過去データとして自動保存する。
 (function () {

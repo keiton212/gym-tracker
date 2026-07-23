@@ -1,15 +1,20 @@
-const TRAINING_START_DATE = new Date(2025, 7, 11); // 2025-08-11
+// 端末ごとのトレーニング開始日（本人の端末なら実際の開始日、新規インストールなら初回起動日）を返す
+function trainingStartDate() {
+    const [y, m, d] = storage.getTrainingStartDate().split('-').map(Number);
+    return new Date(y, m - 1, d);
+}
 
 function getDaysSinceStart(today = new Date()) {
-    const start = new Date(TRAINING_START_DATE.getFullYear(), TRAINING_START_DATE.getMonth(), TRAINING_START_DATE.getDate());
+    const start = trainingStartDate();
     const now = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     return Math.floor((now - start) / 86400000) + 1;
 }
 
 function getMonthsSinceStart(today = new Date()) {
-    let months = (today.getFullYear() - TRAINING_START_DATE.getFullYear()) * 12
-        + (today.getMonth() - TRAINING_START_DATE.getMonth());
-    if (today.getDate() < TRAINING_START_DATE.getDate()) months--;
+    const start = trainingStartDate();
+    let months = (today.getFullYear() - start.getFullYear()) * 12
+        + (today.getMonth() - start.getMonth());
+    if (today.getDate() < start.getDate()) months--;
     return Math.max(0, months);
 }
 
@@ -25,7 +30,7 @@ function formatDurationSinceStart(today = new Date()) {
 function isMilestoneDay(today = new Date()) {
     const days = getDaysSinceStart(today);
     if (days > 0 && days % 100 === 0) return true;
-    if (today.getDate() === TRAINING_START_DATE.getDate()) return true;
+    if (today.getDate() === trainingStartDate().getDate()) return true;
     return false;
 }
 
