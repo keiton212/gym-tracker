@@ -79,7 +79,7 @@ class Timer {
 
         if (remainingMs <= 0) {
             this.stop();
-            playBeep(3);
+            playBeep(6);
             this.remaining = 0;
             this.updateDisplay();
             return;
@@ -186,7 +186,7 @@ class RestTimer {
         if (remainingMs <= 0) {
             this.remaining = 0;
             this.stop();
-            playBeep(2);
+            playBeep(4);
         } else {
             this.remaining = Math.ceil(remainingMs / 1000);
         }
