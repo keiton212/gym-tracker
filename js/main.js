@@ -1,5 +1,10 @@
+// トレーニング中に選択されている記録日（app.sessionDate）を「前回の記録」検索から除外するための日付文字列
+function currentSessionDateStr() {
+    return app?.sessionDate ? app.sessionDate.toISOString().split('T')[0] : undefined;
+}
+
 function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
-    const lastRecord = storage.getLastRecordForSameDay(exercise.name, dayIndex);
+    const lastRecord = storage.getLastRecordForSameDay(exercise.name, dayIndex, currentSessionDateStr());
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const lastIsPerSetWeight = lastRecord?.perSetWeight;
     const suggestedReps = parseRepsRangeLower(exercise.repsRange);
@@ -32,7 +37,7 @@ function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
 }
 
 function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
-    const lastRecord = storage.getLastRecordForSameDay(exercise.name, dayIndex);
+    const lastRecord = storage.getLastRecordForSameDay(exercise.name, dayIndex, currentSessionDateStr());
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const lastIsPerSetWeight = lastRecord?.perSetWeight;
     const step = exercise.weightStep ?? 2.5;
@@ -161,6 +166,8 @@ class GymApp {
         this.restTimers = {};
         this.wakeLock = null;
         this.sessionStartedAt = null;
+        this.sessionDate = null;
+        this.dateOffsetDays = 0;
         this.init();
     }
 
@@ -177,6 +184,10 @@ class GymApp {
         document.getElementById('focusModeBtn')?.addEventListener('click', () => this.focusMode.start(this.currentDayIndex));
 
         document.getElementById('finishTrainingBtn')?.addEventListener('click', () => this.finishTraining());
+
+        document.querySelectorAll('.date-offset-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.setTrainingDateOffset(parseInt(btn.dataset.offset, 10)));
+        });
         document.getElementById('addExerciseBtn')?.addEventListener('click', () => this.addExercise());
         document.getElementById('addMenuExerciseBtn')?.addEventListener('click', () => menuEditor.addExercise());
         document.getElementById('exportDataBtn')?.addEventListener('click', () => this.exportData());
@@ -337,28 +348,47 @@ class GymApp {
     }
 
     startTraining() {
-        this.currentDayIndex = new Date().getDay();
         this.sessionStartedAt = Date.now();
         this.switchScreen('trainingScreen');
-        this.setupTrainingScreen(this.currentDayIndex);
+        this.setTrainingDateOffset(0, { resetTimer: true });
         this.requestWakeLock();
     }
 
-    setupTrainingScreen(dayIndex) {
+    // 記録日を「今日／昨日／一昨日」から選び直す（日付をまたいでのトレーニングや、記録し忘れた過去分の入力用）。
+    // セッション全体タイマーは実際の運動時間を計るものなので、記録日の切替では止めない（resetTimerは開始時のみtrue）。
+    setTrainingDateOffset(offsetDays, { resetTimer = false } = {}) {
+        this.dateOffsetDays = offsetDays;
+
+        const targetDate = new Date();
+        targetDate.setDate(targetDate.getDate() - offsetDays);
+        this.sessionDate = targetDate;
+        this.currentDayIndex = targetDate.getDay();
+
+        document.querySelectorAll('.date-offset-btn').forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.dataset.offset, 10) === offsetDays);
+        });
+
+        this.setupTrainingScreen(this.currentDayIndex, { resetTimer });
+    }
+
+    setupTrainingScreen(dayIndex, { resetTimer = true } = {}) {
         this.clearRestTimers();
 
         const menu = storage.getMenu();
         const dayMenu = menu[dayIndex] || { label: DAY_LABELS_FULL[dayIndex], status: '', exercises: [] };
         const dayLabel = document.getElementById('trainingDayLabel');
         if (dayLabel) {
-            dayLabel.textContent = dayMenu.status ? `${DAY_LABELS_FULL[dayIndex]} - ${dayMenu.status}` : DAY_LABELS_FULL[dayIndex];
+            const dateSuffix = this.dateOffsetDays > 0 ? `（${formatMonthDay(this.sessionDate)}）` : '';
+            dayLabel.textContent = (dayMenu.status ? `${DAY_LABELS_FULL[dayIndex]} - ${dayMenu.status}` : DAY_LABELS_FULL[dayIndex]) + dateSuffix;
         }
 
-        const savedMinutes = storage.getTimerForDay(dayIndex);
-        timer.setDuration(savedMinutes);
+        if (resetTimer) {
+            const savedMinutes = storage.getTimerForDay(dayIndex);
+            timer.setDuration(savedMinutes);
 
-        document.getElementById('timerStartBtn').style.display = 'inline-block';
-        document.getElementById('timerPauseBtn').style.display = 'none';
+            document.getElementById('timerStartBtn').style.display = 'inline-block';
+            document.getElementById('timerPauseBtn').style.display = 'none';
+        }
 
         this.renderExerciseList(dayIndex);
         const draft = storage.getDraft(dayIndex);
@@ -369,7 +399,7 @@ class GymApp {
             notice.className = 'draft-notice';
             document.getElementById('exerciseList')?.before(notice);
         }
-        notice.textContent = draft ? '✅ 前回の入力を復元しました（入力中は自動保存）' : '💾 入力内容は自動保存されます';
+        notice.textContent = draft ? '✅ 前回の入力を復元しました（終了ボタンを押さなくても自動的に記録されます）' : '💾 終了ボタンを押さなくても入力内容は自動的に記録されます';
         notice.hidden = false;
     }
 
@@ -731,6 +761,14 @@ class GymApp {
             };
         });
         storage.saveDraft(this.currentDayIndex, draft);
+        this.autoSaveRecord();
+    }
+
+    // 「終了」ボタンを押さなくても、入力があるたびに正式な記録として自動保存する
+    autoSaveRecord() {
+        const { exerciseRecords, hasAnyInput } = this.collectExerciseRecords();
+        if (!hasAnyInput) return;
+        storage.saveRecord(this.sessionDate || new Date(), this.currentDayIndex, exerciseRecords);
     }
 
     updateRestTimerUI(exerciseId, rt) {
@@ -758,7 +796,8 @@ class GymApp {
         this.restTimers = {};
     }
 
-    finishTraining() {
+    // 画面上の入力内容から記録データを組み立てる（自動保存・終了保存の両方で共有）
+    collectExerciseRecords() {
         const cards = document.querySelectorAll('#exerciseList .exercise-record');
         const exerciseRecords = {};
         let hasAnyInput = false;
@@ -792,6 +831,12 @@ class GymApp {
             }
         });
 
+        return { exerciseRecords, hasAnyInput };
+    }
+
+    finishTraining() {
+        const { exerciseRecords, hasAnyInput } = this.collectExerciseRecords();
+
         if (!hasAnyInput) {
             alert('何も記録されていません');
             return;
@@ -800,7 +845,7 @@ class GymApp {
         timer.stop();
         this.clearRestTimers();
         this.releaseWakeLock();
-        storage.saveRecord(new Date(), this.currentDayIndex, exerciseRecords);
+        storage.saveRecord(this.sessionDate || new Date(), this.currentDayIndex, exerciseRecords);
         storage.clearDraft(this.currentDayIndex);
 
         const summary = this.buildSessionSummary(exerciseRecords);

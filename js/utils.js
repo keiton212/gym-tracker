@@ -22,6 +22,11 @@ function roundToHalf(value) {
     return Math.round(value * 2) / 2;
 }
 
+// 「8/17」のような月/日表記を返す（記録日の表示用）
+function formatMonthDay(date) {
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
 // 過去記録が無い種目の回数初期値として使う、目標回数レンジ（例:"5-8"）の下限値
 function parseRepsRangeLower(repsRange) {
     const match = String(repsRange ?? '').match(/\d+/);

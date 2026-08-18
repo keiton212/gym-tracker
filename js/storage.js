@@ -215,11 +215,14 @@ class Storage {
     }
 
     // 前回の同じ曜日の記録を取得
-    getLastRecordForSameDay(exerciseName, dayIndex) {
+    // excludeDateStr（省略時は今日）は除外する（トレーニング中に自動保存された今回分を「前回の記録」として拾わないため）
+    getLastRecordForSameDay(exerciseName, dayIndex, excludeDateStr) {
         const records = this.getRecords();
         const allRecords = [];
+        const excludeStr = excludeDateStr || new Date().toISOString().split('T')[0];
 
         for (const dateStr in records) {
+            if (dateStr === excludeStr) continue;
             if (records[dateStr][dayIndex]) {
                 const dayRecords = records[dateStr][dayIndex];
                 if (dayRecords[exerciseName]) {

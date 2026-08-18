@@ -12,7 +12,8 @@
         'gym_migration_ppl_labels_v3',
         'gym_migration_weight_step_v4',
         'gym_migration_weight_step_v5',
-        'gym_migration_saturday_rebuild_v6'
+        'gym_migration_saturday_rebuild_v6',
+        'gym_migration_draft_recovery_v7'
     ].forEach(flag => {
         if (!localStorage.getItem(flag)) localStorage.setItem(flag, '1');
     });
@@ -256,5 +257,57 @@
         localStorage.setItem(FLAG6, '1');
     } catch (e) {
         console.error('Migration v6 failed:', e);
+    }
+})();
+
+// 「トレーニング終了」ボタンの押し忘れで正式な記録にならず消えていた入力を、
+// まだ残っている下書き（gym_training_drafts）から一度だけ復元する。
+// 記録日はその曜日の直近の日付（今日がその曜日なら今日）と推定し、
+// 既にその日の記録がある場合は上書きしない。
+(function () {
+    const FLAG7 = 'gym_migration_draft_recovery_v7';
+    if (localStorage.getItem(FLAG7)) return;
+
+    try {
+        const drafts = JSON.parse(localStorage.getItem('gym_training_drafts') || '{}');
+
+        Object.keys(drafts).forEach(dayIndexStr => {
+            const dayIndex = parseInt(dayIndexStr, 10);
+            const draft = drafts[dayIndexStr];
+            if (!draft || typeof draft !== 'object') return;
+
+            const exerciseRecords = {};
+            let hasAnyInput = false;
+
+            Object.entries(draft).forEach(([name, entry]) => {
+                const sets = entry?.sets || [];
+                const isPerSetWeight = sets.length > 0 && typeof sets[0] === 'object' && sets[0] !== null;
+
+                if (isPerSetWeight) {
+                    sets.forEach(s => { if ((s?.weight ?? '') !== '' || (s?.reps ?? '') !== '') hasAnyInput = true; });
+                    exerciseRecords[name] = { perSetWeight: true, sets, setCount: sets.length };
+                } else {
+                    sets.forEach(s => { if ((s ?? '') !== '') hasAnyInput = true; });
+                    exerciseRecords[name] = { weight: entry?.weight || '', sets, setCount: sets.length };
+                }
+            });
+
+            if (!hasAnyInput) return;
+
+            const today = new Date();
+            const diffDays = (today.getDay() - dayIndex + 7) % 7;
+            const recordDate = new Date(today);
+            recordDate.setDate(today.getDate() - diffDays);
+            const dateStr = recordDate.toISOString().split('T')[0];
+
+            const records = storage.getRecords();
+            if (records[dateStr]?.[dayIndex]) return;
+
+            storage.saveRecord(recordDate, dayIndex, exerciseRecords);
+        });
+
+        localStorage.setItem(FLAG7, '1');
+    } catch (e) {
+        console.error('Migration v7 failed:', e);
     }
 })();
