@@ -399,7 +399,7 @@ class GymApp {
             notice.className = 'draft-notice';
             document.getElementById('exerciseList')?.before(notice);
         }
-        notice.textContent = draft ? '✅ 前回の入力を復元しました（終了ボタンを押さなくても自動的に記録されます）' : '💾 終了ボタンを押さなくても入力内容は自動的に記録されます';
+        notice.textContent = draft ? '✅ 前回の入力を復元しました（入力中は自動保存）' : '💾 入力内容は自動保存されます';
         notice.hidden = false;
     }
 
