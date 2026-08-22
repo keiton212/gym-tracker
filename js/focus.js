@@ -146,7 +146,13 @@ class FocusMode {
             return;
         }
 
-        this.stepIndex = Math.min(storage.getFocusProgress(dayIndex), Math.max(0, this.steps.length - 1));
+        // 保存されていた進捗（種目ID＋セット番号）が、並び替え後の新しいステップ列のどこに当たるかを探し直す。
+        // 見つからない（種目が削除された等）場合は最初から。
+        const saved = storage.getFocusProgress(dayIndex);
+        const resumeIndex = saved
+            ? this.steps.findIndex(st => this.exercises[st.ei].id === saved.exerciseId && st.si === saved.setIndex)
+            : -1;
+        this.stepIndex = resumeIndex !== -1 ? resumeIndex : 0;
         this.lockScreenActive = false;
         this.updateLockScreenButton();
         this.app.switchScreen('focusScreen');
@@ -329,7 +335,7 @@ class FocusMode {
             });
             if (staysOnSameExercise) this.app.restTimers[exerciseId]?.start();
             this.stepIndex++;
-            storage.setFocusProgress(this.dayIndex, this.stepIndex);
+            this.saveFocusProgress();
             this.render();
         } else {
             this.finish();
@@ -339,8 +345,13 @@ class FocusMode {
     goBack() {
         if (this.stepIndex === 0) return;
         this.stepIndex--;
-        storage.setFocusProgress(this.dayIndex, this.stepIndex);
+        this.saveFocusProgress();
         this.render();
+    }
+
+    saveFocusProgress() {
+        const step = this.steps[this.stepIndex];
+        storage.setFocusProgress(this.dayIndex, this.exercises[step.ei].id, step.si);
     }
 
     toggleRest() {
@@ -376,7 +387,7 @@ class FocusMode {
     }
 
     exit() {
-        storage.setFocusProgress(this.dayIndex, this.stepIndex);
+        this.saveFocusProgress();
         this.lockScreenActive = false;
         lockScreenControl.stop();
         if (this.pollInterval) {

@@ -304,14 +304,18 @@ class Storage {
         localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts));
     }
 
+    // 進捗は「通し番号」ではなく種目ID＋セット番号で保存する。
+    // 通し番号だと、集中モードを抜けた後に種目の並び替え・追加・削除をした場合に
+    // 全く別の種目/セットを指してしまうため。
     getFocusProgress(dayIndex) {
         const data = JSON.parse(localStorage.getItem(STORAGE_KEYS.FOCUS_PROGRESS) || '{}');
-        return Number.isInteger(data[dayIndex]) ? data[dayIndex] : 0;
+        const entry = data[dayIndex];
+        return (entry && typeof entry === 'object' && entry.exerciseId) ? entry : null;
     }
 
-    setFocusProgress(dayIndex, stepIndex) {
+    setFocusProgress(dayIndex, exerciseId, setIndex) {
         const data = JSON.parse(localStorage.getItem(STORAGE_KEYS.FOCUS_PROGRESS) || '{}');
-        data[dayIndex] = stepIndex;
+        data[dayIndex] = { exerciseId, setIndex };
         localStorage.setItem(STORAGE_KEYS.FOCUS_PROGRESS, JSON.stringify(data));
     }
 
