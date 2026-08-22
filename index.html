@@ -160,7 +160,14 @@
             <h2>過去データ</h2>
         </div>
 
-        <button id="exportDataBtn" class="btn-secondary">データを書き出す</button>
+        <div class="backup-section">
+            <div id="backupStatusText" class="backup-status-text"></div>
+            <div class="backup-buttons-row">
+                <button id="exportDataBtn" class="btn-secondary">データを書き出す</button>
+                <button id="importDataBtn" class="btn-secondary">バックアップから復元</button>
+            </div>
+            <input type="file" id="backupRestoreInput" accept="application/json" hidden>
+        </div>
 
         <div id="historyVolumeStats" class="volume-stats"></div>
 
@@ -174,10 +181,21 @@
         <button class="btn-back btn-back-float" aria-label="ホームに戻る">←</button>
     </div>
 
+    <!-- 記録が空の状態で起動したときの復元導線 -->
+    <div id="recoveryOverlay" class="recovery-overlay" hidden>
+        <div class="recovery-box">
+            <h2>⚠️ データが見つかりません</h2>
+            <p>保存されているはずのトレーニング記録が空の状態で起動しました。以前バックアップしたファイルがあれば復元できます。初めてこのアプリを開いた場合は、そのまま新規で始めてください。</p>
+            <button id="recoveryRestoreBtn" class="btn-primary">バックアップから復元</button>
+            <button id="recoveryFreshBtn" class="btn-secondary">新規で始める</button>
+        </div>
+    </div>
+
     <script src="js/storage.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/milestones.js"></script>
     <script src="js/migration.js"></script>
+    <script src="js/backup.js"></script>
     <script src="js/weather.js"></script>
     <script src="js/timer.js"></script>
     <script src="js/history.js"></script>

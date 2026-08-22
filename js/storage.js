@@ -38,6 +38,12 @@ class Storage {
     }
 
     initializeStorage() {
+        // シードを書き込む「前」に、記録データ（gym_records）が無い状態で起動したかを記録しておく。
+        // このキーはアプリ自身が丸ごとnullに戻すことはない（削除は日付単位のみ）ので、
+        // nullなら「本当の初回起動」か「iOSなどにデータを消された」のどちらか。
+        // 黙って空の状態で始めず、起動時にユーザーへ復元の導線を出す（js/backup.js）
+        this.wasEmptyOnBoot = localStorage.getItem(STORAGE_KEYS.RECORDS) === null;
+
         const existingMenu = localStorage.getItem(STORAGE_KEYS.MENU);
         const menuData = existingMenu ? JSON.parse(existingMenu) : null;
 

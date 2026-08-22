@@ -1312,6 +1312,83 @@ button, input {
     white-space: nowrap;
 }
 
+.backup-section {
+    margin-bottom: 15px;
+}
+
+.backup-buttons-row {
+    display: flex;
+    gap: 8px;
+}
+
+.backup-buttons-row .btn-secondary {
+    flex: 1;
+}
+
+.backup-status-text {
+    font-size: 11px;
+    color: #6b7280;
+    margin-bottom: 6px;
+}
+
+.backup-status-text.stale {
+    color: #d97706;
+}
+
+.backup-toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(90px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    background: rgba(20, 20, 20, 0.9);
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    z-index: 999;
+    box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.4);
+}
+
+.recovery-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 2000;
+}
+
+.recovery-box {
+    background: white;
+    border-radius: 16px;
+    padding: 24px 20px;
+    max-width: 360px;
+    text-align: center;
+}
+
+.recovery-box h2 {
+    font-size: 18px;
+    margin-bottom: 12px;
+}
+
+.recovery-box p {
+    font-size: 13px;
+    color: #4b5563;
+    line-height: 1.7;
+    margin-bottom: 20px;
+}
+
+.recovery-box .btn-primary {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.recovery-box .btn-secondary {
+    width: 100%;
+}
+
 /* レスポンシブ */
 @media (max-width: 480px) {
     .weather-card {
