@@ -122,10 +122,13 @@ function buildExerciseBodyHTML(dayIndex, exercise, liveValues) {
 }
 
 function buildExerciseCardHTML(dayIndex, exercise, isFirst, isLast) {
-    const choices = [exercise.name, ...(exercise.alternatives || [])].filter(Boolean);
-    const choiceControl = choices.length > 1
+    // variantNames は種目本体を必ず1つ含む（名前が未入力でも入力フォームを描画するため）。
+    // choiceControl（切替ボタン）用には、名前が入っているものだけに絞ったnamedChoicesを使う。
+    const variantNames = [exercise.name, ...(exercise.alternatives || [])];
+    const namedChoices = variantNames.filter(Boolean);
+    const choiceControl = namedChoices.length > 1
         ? `<div class="exercise-choice-label">このメニュー枠で行う種目
-                <div class="exercise-choice-buttons">${choices.map((name, index) => `<button type="button" class="exercise-choice-btn ${index === 0 ? 'active' : ''}" data-choice="${escapeAttr(name)}">${escapeAttr(name)}</button>`).join('')}</div>
+                <div class="exercise-choice-buttons">${namedChoices.map((name, index) => `<button type="button" class="exercise-choice-btn ${index === 0 ? 'active' : ''}" data-choice="${escapeAttr(name)}">${escapeAttr(name)}</button>`).join('')}</div>
            </div>`
         : '';
     return `
@@ -147,7 +150,7 @@ function buildExerciseCardHTML(dayIndex, exercise, isFirst, isLast) {
                 ${REST_PRESETS.map(m => `<button type="button" class="rest-preset-btn ${(exercise.restMinutes ?? 2) === m ? 'active' : ''}" data-minutes="${m}">${m}分</button>`).join('')}
             </div>
             <div class="exercise-variants">
-                ${choices.map((name, index) => `<div class="exercise-variant ${index === 0 ? 'active' : ''}" data-variant-name="${escapeAttr(name)}">
+                ${variantNames.map((name, index) => `<div class="exercise-variant ${index === 0 ? 'active' : ''}" data-variant-name="${escapeAttr(name)}">
                     ${index > 0 ? `<div class="exercise-variant-or">
                         <span class="exercise-variant-or-label">OR</span>
                         <input type="text" class="exercise-name-input exercise-alt-name-input" data-alt-index="${index - 1}" value="${escapeAttr(name)}" placeholder="種目名">
@@ -473,6 +476,7 @@ class GymApp {
 
         nameInput.addEventListener('change', (e) => {
             storage.updateExercise(dayIndex, exerciseId, { name: e.target.value.trim() });
+            this.renderExerciseList(dayIndex);
         });
 
         cardEl.querySelectorAll('.exercise-choice-btn').forEach(btn => btn.addEventListener('click', () => {

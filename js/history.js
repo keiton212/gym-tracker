@@ -88,7 +88,8 @@ class History {
         });
     }
 
-    // 選択中の曜日について、種目ごとの総重量（重量×回数の合計）推移グラフを描画する
+    // 選択中の曜日について、種目ごとに「セット1はセット1同士、セット2はセット2同士」で
+    // 回数の推移を比較できるグラフを描画する（総重量だけだと、どのセットが伸びたか分からないため）
     renderTrends() {
         const container = document.getElementById('historyTrends');
         if (!container) return;
@@ -103,19 +104,27 @@ class History {
         const byExercise = {};
         sessions.forEach(session => {
             Object.keys(session.exercises).forEach(name => {
-                const volume = calculateExerciseVolume(session.exercises[name]);
                 if (!byExercise[name]) byExercise[name] = [];
-                // 自重種目など重量なしの日は0になるので、線が0に張り付かないよう欠測扱いにする
-                byExercise[name].push({ x: this.formatDate(session.date), y: volume > 0 ? volume : null });
+                byExercise[name].push({ date: this.formatDate(session.date), rec: session.exercises[name] });
             });
         });
 
-        container.innerHTML = Object.keys(byExercise).map(name => `
-            <div class="trend-card">
-                <div class="trend-title">${name}（総重量）</div>
-                ${buildLineChartSVG(byExercise[name])}
-            </div>
-        `).join('');
+        container.innerHTML = Object.keys(byExercise).map(name => {
+            const entries = byExercise[name];
+            const labels = entries.map(e => e.date);
+            const maxSets = Math.max(...entries.map(e => (e.rec.sets || []).length));
+            const seriesList = Array.from({ length: maxSets }, (_, setIndex) => ({
+                label: `セット${setIndex + 1}`,
+                points: entries.map(e => ({ y: getSetReps(e.rec, setIndex), weight: getSetWeight(e.rec, setIndex) }))
+            }));
+
+            return `
+                <div class="trend-card">
+                    <div class="trend-title">${name}（セットごとの回数）</div>
+                    ${buildMultiLineChartSVG(seriesList, labels)}
+                </div>
+            `;
+        }).join('');
     }
 
     // 週ごと・月ごとの総ボリューム（全曜日合算）を棒グラフで描画する
