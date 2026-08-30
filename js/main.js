@@ -4,7 +4,7 @@ function currentSessionDateStr() {
 }
 
 function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
-    const lastRecord = storage.getLastRecordForSameDay(exercise.name, dayIndex, currentSessionDateStr());
+    const lastRecord = storage.getLastRecord(exercise.name, currentSessionDateStr());
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const lastIsPerSetWeight = lastRecord?.perSetWeight;
     const suggestedReps = parseRepsRangeLower(exercise.repsRange);
@@ -37,7 +37,7 @@ function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
 }
 
 function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
-    const lastRecord = storage.getLastRecordForSameDay(exercise.name, dayIndex, currentSessionDateStr());
+    const lastRecord = storage.getLastRecord(exercise.name, currentSessionDateStr());
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const lastIsPerSetWeight = lastRecord?.perSetWeight;
     const step = exercise.weightStep ?? 2.5;

@@ -13,7 +13,8 @@
         'gym_migration_weight_step_v4',
         'gym_migration_weight_step_v5',
         'gym_migration_saturday_rebuild_v6',
-        'gym_migration_draft_recovery_v7'
+        'gym_migration_draft_recovery_v7',
+        'gym_migration_ppl_zoryoki_v8'
     ].forEach(flag => {
         if (!localStorage.getItem(flag)) localStorage.setItem(flag, '1');
     });
@@ -309,5 +310,124 @@
         localStorage.setItem(FLAG7, '1');
     } catch (e) {
         console.error('Migration v7 failed:', e);
+    }
+})();
+
+// PPL増量期メニューへの全曜日入れ替え。
+// 記録は既に「曜日」ではなく「種目名」だけで紐付ける方式にしてある（storage.getLastRecord）ため、
+// 曜日をまたいでも種目名さえ同じなら過去の記録を引き継げる。
+// ここでは、旧メニューで表記ゆれのあった2種目（チェストサポートロー/ロウ、マシンサイドレイズ/マシンサイド）の
+// 過去記録を統一名に一度だけ書き換えたうえで、メニュー全体を新しい7曜日構成に差し替える。
+(function () {
+    const FLAG8 = 'gym_migration_ppl_zoryoki_v8';
+    if (localStorage.getItem(FLAG8)) return;
+
+    try {
+        // 1. 表記ゆれのある種目名を統一名に書き換える
+        const nameRenames = {
+            'チェストサポートロウ': 'チェストサポートロー',
+            'マシンサイド': 'マシンサイドレイズ'
+        };
+        const records = storage.getRecords();
+        Object.keys(records).forEach(dateStr => {
+            Object.keys(records[dateStr]).forEach(dayIdx => {
+                const dayRecords = records[dateStr][dayIdx];
+                Object.keys(nameRenames).forEach(oldName => {
+                    if (dayRecords[oldName] === undefined) return;
+                    const newName = nameRenames[oldName];
+                    // 統一先の名前で既に同じ日の記録がある場合は上書きせず、古い方だけ捨てる
+                    if (dayRecords[newName] === undefined) {
+                        dayRecords[newName] = dayRecords[oldName];
+                    }
+                    delete dayRecords[oldName];
+                });
+            });
+        });
+        localStorage.setItem('gym_records', JSON.stringify(records));
+
+        // 2. メニューを新しい7曜日構成に丸ごと差し替える
+        function ex(name, fields) {
+            return Object.assign({
+                id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+                name,
+                weight: '',
+                sets: '3',
+                repsRange: '',
+                restMinutes: 2,
+                perSetWeight: false,
+                weightStep: 2.5
+            }, fields);
+        }
+
+        const newMenu = {
+            0: { label: '日曜日', status: '休み', exercises: [] },
+            1: {
+                label: '月曜日', status: 'Pull A（広がりメイン）',
+                exercises: [
+                    ex('加重懸垂', { weight: '0', sets: '4', repsRange: '5-8', restMinutes: 3 }),
+                    ex('ラットプルダウン ミドルパラレル', { weight: '68', sets: '3', repsRange: '8-12', restMinutes: 2 }),
+                    ex('チェストサポートロー', { weight: '68', sets: '4', repsRange: '8-12', restMinutes: 2 }),
+                    ex('ケーブルプルオーバー', { weight: '21', sets: '3', repsRange: '10-15', restMinutes: 1.5 }),
+                    ex('リアマシン', { weight: '54', sets: '3', repsRange: '12-20', restMinutes: 1.5 }),
+                    ex('バーベルカール', { weight: '40', sets: '3', repsRange: '6-10', restMinutes: 2, perSetWeight: true }),
+                    ex('インクラインダンベルカール', { weight: '14', sets: '2', repsRange: '10-15', restMinutes: 1.5, weightStep: 2 })
+                ]
+            },
+            2: {
+                label: '火曜日', status: 'Push A（胸メイン）',
+                exercises: [
+                    ex('ベンチプレス', { weight: '75', sets: '3', repsRange: '5-8', restMinutes: 3, perSetWeight: true }),
+                    ex('インクラインダンベルプレス', { weight: '30', sets: '3', repsRange: '6-10', restMinutes: 3, weightStep: 2 }),
+                    ex('ディップス', { weight: '0', sets: '3', repsRange: '8-12', restMinutes: 2.5, perSetWeight: true }),
+                    ex('ショルダープレスマシン（ハンマーストレングス）', { weight: '32.5', sets: '2', repsRange: '8-12', restMinutes: 2, weightStep: 1.25 }),
+                    ex('ダンベルサイドレイズ', { weight: '12', sets: '4', repsRange: '10-20', restMinutes: 1, weightStep: 1 }),
+                    ex('オーバーヘッドエクステンション', { weight: '23', sets: '3', repsRange: '8-15', restMinutes: 1.5, perSetWeight: true }),
+                    ex('ケーブルプレスダウン', { weight: '31', sets: '2', repsRange: '10-15', restMinutes: 1.5, perSetWeight: true })
+                ]
+            },
+            3: {
+                label: '水曜日', status: 'Legs＋ベンチプレス',
+                exercises: [
+                    ex('ベンチプレス', { weight: '70', sets: '3', repsRange: '5-8', restMinutes: 3, perSetWeight: true }),
+                    ex('ハックスクワット', { weight: '', sets: '3', repsRange: '6-10', restMinutes: 3 }),
+                    ex('ルーマニアンデッドリフト', { weight: '120', sets: '3', repsRange: '6-10', restMinutes: 3 }),
+                    ex('レッグカール', { weight: '48', sets: '3', repsRange: '8-15', restMinutes: 2 }),
+                    ex('レッグエクステンション', { weight: '89', sets: '3', repsRange: '10-15', restMinutes: 1.5, perSetWeight: true }),
+                    ex('カーフレイズ', { weight: '', sets: '4', repsRange: '8-15', restMinutes: 1.5 }),
+                    ex('ハンギングレッグレイズ', { weight: '', sets: '3', repsRange: '8-15', restMinutes: 1.5 })
+                ]
+            },
+            4: { label: '木曜日', status: '休み', exercises: [] },
+            5: {
+                label: '金曜日', status: 'Pull B（厚みメイン）',
+                exercises: [
+                    ex('ベントオーバーロー', { weight: '75', sets: '3', repsRange: '6-10', restMinutes: 3 }),
+                    ex('チェストサポートロー', { weight: '68', sets: '3', repsRange: '8-12', restMinutes: 2 }),
+                    ex('懸垂', { weight: '', sets: '3', repsRange: '6-10', restMinutes: 3 }),
+                    ex('ラットプルダウン ミドルパラレル', { weight: '68', sets: '3', repsRange: '8-12', restMinutes: 2 }),
+                    ex('リアマシン', { weight: '54', sets: '3', repsRange: '12-20', restMinutes: 1.5 }),
+                    ex('インクラインダンベルカール', { weight: '14', sets: '3', repsRange: '8-12', restMinutes: 2, weightStep: 2 }),
+                    ex('ハンマーカール', { weight: '10', sets: '2', repsRange: '10-15', restMinutes: 1.5 })
+                ]
+            },
+            6: {
+                label: '土曜日', status: 'Push B（肩メイン）',
+                exercises: [
+                    ex('ダンベルショルダープレス', { weight: '28', sets: '3', repsRange: '5-8', restMinutes: 3, weightStep: 2 }),
+                    ex('インクラインプレス', { weight: '35', sets: '3', repsRange: '6-10', restMinutes: 3, weightStep: 2 }),
+                    ex('ベンチプレス', { weight: '70', sets: '2', repsRange: '6-10', restMinutes: 3, perSetWeight: true }),
+                    ex('マシンサイドレイズ', { weight: '11.25', sets: '4', repsRange: '10-20', restMinutes: 1.5, weightStep: 1.25 }),
+                    ex('ダンベルサイドレイズ', { weight: '12', sets: '3', repsRange: '12-20', restMinutes: 1, weightStep: 1 }),
+                    ex('ペックフライ', { weight: '56', sets: '3', repsRange: '10-15', restMinutes: 1.5, weightStep: 2 }),
+                    ex('オーバーヘッドエクステンション', { weight: '23', sets: '3', repsRange: '8-15', restMinutes: 1.5, perSetWeight: true }),
+                    ex('ケーブルプレスダウン', { weight: '31', sets: '2', repsRange: '10-20', restMinutes: 1, perSetWeight: true })
+                ]
+            }
+        };
+
+        storage.setMenu(newMenu);
+        localStorage.setItem(FLAG8, '1');
+    } catch (e) {
+        console.error('Migration v8 failed:', e);
     }
 })();

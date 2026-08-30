@@ -214,21 +214,22 @@ class Storage {
         localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(records));
     }
 
-    // 前回の同じ曜日の記録を取得
+    // 前回の記録を取得する。曜日は問わず種目名だけで検索する
+    // （メニューの曜日を変えたり並び替えたりしても、同じ種目名なら記録を引き継げるようにするため）。
     // excludeDateStr（省略時は今日）は除外する（トレーニング中に自動保存された今回分を「前回の記録」として拾わないため）
-    getLastRecordForSameDay(exerciseName, dayIndex, excludeDateStr) {
+    getLastRecord(exerciseName, excludeDateStr) {
         const records = this.getRecords();
         const allRecords = [];
         const excludeStr = excludeDateStr || new Date().toISOString().split('T')[0];
 
         for (const dateStr in records) {
             if (dateStr === excludeStr) continue;
-            if (records[dateStr][dayIndex]) {
-                const dayRecords = records[dateStr][dayIndex];
-                if (dayRecords[exerciseName]) {
+            const dayEntries = records[dateStr];
+            for (const dayIndex in dayEntries) {
+                if (dayEntries[dayIndex][exerciseName]) {
                     allRecords.push({
                         date: dateStr,
-                        data: dayRecords[exerciseName]
+                        data: dayEntries[dayIndex][exerciseName]
                     });
                 }
             }
