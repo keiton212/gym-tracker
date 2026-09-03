@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
     LAST_EXPORT_AT: 'gym_last_export_at'
     ,DRAFTS: 'gym_training_drafts', FOCUS_PROGRESS: 'gym_focus_progress'
     ,TRAINING_START_DATE: 'gym_training_start_date'
+    ,INITIALIZED: 'gym_storage_initialized'
 };
 
 // 開発者本人の実際のトレーニング開始日（このデバイスに既存メニューがある＝本人の端末の場合の初期値として使う）
@@ -37,9 +38,30 @@ class Storage {
         this.initializeStorage();
     }
 
+    readJson(key, fallback) {
+        const raw = localStorage.getItem(key);
+        if (raw === null) return fallback;
+        try {
+            return JSON.parse(raw);
+        } catch (e) {
+            this.needsRecoveryOnBoot = true;
+            return fallback;
+        }
+    }
+
+    notifyChanged() {
+        if (typeof Backup !== 'undefined') Backup.scheduleSnapshot();
+    }
+
     initializeStorage() {
+        const recordsWereMissing = localStorage.getItem(STORAGE_KEYS.RECORDS) === null;
+        const wasInitialized = localStorage.getItem(STORAGE_KEYS.INITIALIZED) === '1';
+        this.wasEmptyOnBoot = recordsWereMissing;
+        this.needsRecoveryOnBoot = false;
+        if (recordsWereMissing && wasInitialized) this.needsRecoveryOnBoot = true;
+
         const existingMenu = localStorage.getItem(STORAGE_KEYS.MENU);
-        const menuData = existingMenu ? JSON.parse(existingMenu) : null;
+        const menuData = this.readJson(STORAGE_KEYS.MENU, null);
 
         let hasMenu = false;
         if (menuData) {
@@ -55,10 +77,13 @@ class Storage {
             localStorage.setItem(STORAGE_KEYS.MENU, JSON.stringify(SEED_MENU));
         }
 
-        if (!localStorage.getItem(STORAGE_KEYS.RECORDS)) {
+        const records = this.readJson(STORAGE_KEYS.RECORDS, null);
+        if (!records || typeof records !== 'object' || Array.isArray(records)) {
+            if (localStorage.getItem(STORAGE_KEYS.RECORDS) !== null) this.needsRecoveryOnBoot = true;
             localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify({}));
         }
-        if (!localStorage.getItem(STORAGE_KEYS.TIMER_SETTINGS)) {
+        const timerSettings = this.readJson(STORAGE_KEYS.TIMER_SETTINGS, null);
+        if (!timerSettings || typeof timerSettings !== 'object' || Array.isArray(timerSettings)) {
             localStorage.setItem(STORAGE_KEYS.TIMER_SETTINGS, JSON.stringify(DEFAULT_TIMER_SETTINGS));
         }
 
@@ -68,6 +93,7 @@ class Storage {
             const startDate = hasMenu ? DEVELOPER_TRAINING_START_DATE : new Date().toISOString().split('T')[0];
             localStorage.setItem(STORAGE_KEYS.TRAINING_START_DATE, startDate);
         }
+        localStorage.setItem(STORAGE_KEYS.INITIALIZED, '1');
     }
 
     getTrainingStartDate() {
@@ -76,11 +102,12 @@ class Storage {
 
     // メニュー関連
     getMenu() {
-        return JSON.parse(localStorage.getItem(STORAGE_KEYS.MENU)) || SEED_MENU;
+        return this.readJson(STORAGE_KEYS.MENU, SEED_MENU) || SEED_MENU;
     }
 
     setMenu(menu) {
         localStorage.setItem(STORAGE_KEYS.MENU, JSON.stringify(menu));
+        this.notifyChanged();
     }
 
     getExercisesForDay(dayIndex) {
@@ -181,7 +208,7 @@ class Storage {
 
     // 記録関連
     getRecords() {
-        return JSON.parse(localStorage.getItem(STORAGE_KEYS.RECORDS)) || {};
+        return this.readJson(STORAGE_KEYS.RECORDS, {}) || {};
     }
 
     saveRecord(date, dayIndex, exerciseRecords) {
@@ -194,6 +221,7 @@ class Storage {
 
         records[dateStr][dayIndex] = exerciseRecords;
         localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(records));
+        this.notifyChanged();
     }
 
     getRecordForDay(date, dayIndex) {
@@ -212,6 +240,7 @@ class Storage {
             delete records[dateStr];
         }
         localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(records));
+        this.notifyChanged();
     }
 
     // 前回の記録を取得する。曜日は問わず種目名だけで検索する
@@ -260,11 +289,12 @@ class Storage {
 
     // タイマー設定関連
     getTimerSettings() {
-        return JSON.parse(localStorage.getItem(STORAGE_KEYS.TIMER_SETTINGS)) || DEFAULT_TIMER_SETTINGS;
+        return this.readJson(STORAGE_KEYS.TIMER_SETTINGS, DEFAULT_TIMER_SETTINGS) || DEFAULT_TIMER_SETTINGS;
     }
 
     setTimerSettings(settings) {
         localStorage.setItem(STORAGE_KEYS.TIMER_SETTINGS, JSON.stringify(settings));
+        this.notifyChanged();
     }
 
     getTimerForDay(dayIndex) {
@@ -289,41 +319,45 @@ class Storage {
     }
 
     getDraft(dayIndex) {
-        const drafts = JSON.parse(localStorage.getItem(STORAGE_KEYS.DRAFTS) || '{}');
+        const drafts = this.readJson(STORAGE_KEYS.DRAFTS, {});
         return drafts[dayIndex] || null;
     }
 
     saveDraft(dayIndex, draft) {
-        const drafts = JSON.parse(localStorage.getItem(STORAGE_KEYS.DRAFTS) || '{}');
+        const drafts = this.readJson(STORAGE_KEYS.DRAFTS, {});
         drafts[dayIndex] = draft;
         localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts));
+        this.notifyChanged();
     }
 
     clearDraft(dayIndex) {
-        const drafts = JSON.parse(localStorage.getItem(STORAGE_KEYS.DRAFTS) || '{}');
+        const drafts = this.readJson(STORAGE_KEYS.DRAFTS, {});
         delete drafts[dayIndex];
         localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts));
+        this.notifyChanged();
     }
 
     // 進捗は「通し番号」ではなく種目ID＋セット番号で保存する。
     // 通し番号だと、集中モードを抜けた後に種目の並び替え・追加・削除をした場合に
     // 全く別の種目/セットを指してしまうため。
     getFocusProgress(dayIndex) {
-        const data = JSON.parse(localStorage.getItem(STORAGE_KEYS.FOCUS_PROGRESS) || '{}');
+        const data = this.readJson(STORAGE_KEYS.FOCUS_PROGRESS, {});
         const entry = data[dayIndex];
         return (entry && typeof entry === 'object' && entry.exerciseId) ? entry : null;
     }
 
     setFocusProgress(dayIndex, exerciseId, setIndex) {
-        const data = JSON.parse(localStorage.getItem(STORAGE_KEYS.FOCUS_PROGRESS) || '{}');
+        const data = this.readJson(STORAGE_KEYS.FOCUS_PROGRESS, {});
         data[dayIndex] = { exerciseId, setIndex };
         localStorage.setItem(STORAGE_KEYS.FOCUS_PROGRESS, JSON.stringify(data));
+        this.notifyChanged();
     }
 
     clearFocusProgress(dayIndex) {
-        const data = JSON.parse(localStorage.getItem(STORAGE_KEYS.FOCUS_PROGRESS) || '{}');
+        const data = this.readJson(STORAGE_KEYS.FOCUS_PROGRESS, {});
         delete data[dayIndex];
         localStorage.setItem(STORAGE_KEYS.FOCUS_PROGRESS, JSON.stringify(data));
+        this.notifyChanged();
     }
 }
 

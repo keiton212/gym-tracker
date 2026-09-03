@@ -1312,6 +1312,126 @@ button, input {
     white-space: nowrap;
 }
 
+.backup-section {
+    margin-bottom: 16px;
+    padding: 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+}
+
+.backup-protection-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: #475569;
+}
+
+.backup-protection-row strong {
+    color: #15803d;
+    font-size: 12px;
+}
+
+.backup-status-text {
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.backup-status-text.stale {
+    color: #b45309;
+}
+
+.backup-buttons-row {
+    display: flex;
+    gap: 8px;
+}
+
+.backup-buttons-row .btn-secondary {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 8px;
+    font-size: 12px;
+}
+
+.backup-restore-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    text-align: center;
+}
+
+.backup-help {
+    margin: 10px 0 0;
+    color: #64748b;
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+.backup-toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(90px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    max-width: calc(100% - 32px);
+    padding: 10px 16px;
+    color: #fff;
+    background: rgba(15, 23, 42, 0.94);
+    border-radius: 20px;
+    font-size: 13px;
+    text-align: center;
+    z-index: 2100;
+}
+
+.recovery-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.86);
+    z-index: 2000;
+}
+
+.recovery-overlay[hidden] {
+    display: none;
+}
+
+.recovery-box {
+    width: 100%;
+    max-width: 360px;
+    padding: 24px 20px;
+    background: #fff;
+    border-radius: 16px;
+    text-align: center;
+}
+
+.recovery-box h2 {
+    margin: 0 0 12px;
+    font-size: 19px;
+}
+
+.recovery-box p {
+    margin: 0 0 20px;
+    color: #475569;
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.recovery-box .btn-primary,
+.recovery-box .btn-secondary {
+    width: 100%;
+}
+
+.recovery-box .btn-primary {
+    margin-bottom: 10px;
+}
+
 /* レスポンシブ */
 @media (max-width: 480px) {
     .weather-card {

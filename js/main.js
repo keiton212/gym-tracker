@@ -193,8 +193,6 @@ class GymApp {
         });
         document.getElementById('addExerciseBtn')?.addEventListener('click', () => this.addExercise());
         document.getElementById('addMenuExerciseBtn')?.addEventListener('click', () => menuEditor.addExercise());
-        document.getElementById('exportDataBtn')?.addEventListener('click', () => this.exportData());
-
         this.setupTimerTapToEdit();
 
         document.getElementById('timerStartBtn')?.addEventListener('click', () => {
@@ -306,7 +304,7 @@ class GymApp {
             <span>${message}</span>
             <button id="backupNowBtn" type="button" class="btn-backup-now">今すぐバックアップ</button>
         `;
-        document.getElementById('backupNowBtn')?.addEventListener('click', () => this.exportData());
+        document.getElementById('backupNowBtn')?.addEventListener('click', () => Backup.save());
     }
 
     displayMilestoneCard() {
@@ -905,38 +903,7 @@ class GymApp {
     showHistoryScreen() {
         this.switchScreen('historyScreen');
         history.render(new Date().getDay());
-    }
-
-    exportData() {
-        const data = {
-            exportedAt: new Date().toISOString(),
-            menu: storage.getMenu(),
-            records: storage.getRecords(),
-            timerSettings: storage.getTimerSettings()
-        };
-        const json = JSON.stringify(data, null, 2);
-        const fileName = `gym-tracker-backup-${new Date().toISOString().slice(0, 10)}.json`;
-        const blob = new Blob([json], { type: 'application/json' });
-
-        storage.setLastExportAt(Date.now());
-        this.displayBackupReminder();
-
-        if (navigator.canShare) {
-            const file = new File([blob], fileName, { type: 'application/json' });
-            if (navigator.canShare({ files: [file] })) {
-                navigator.share({ files: [file], title: 'GymTracker バックアップ' }).catch(() => {});
-                return;
-            }
-        }
-
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        Backup.renderStatus();
     }
 }
 

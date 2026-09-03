@@ -160,7 +160,19 @@
             <h2>過去データ</h2>
         </div>
 
-        <button id="exportDataBtn" class="btn-secondary">データを書き出す</button>
+        <div class="backup-section">
+            <div class="backup-protection-row">
+                <span>端末内の自動保護</span>
+                <strong id="localBackupStatus">準備中…</strong>
+            </div>
+            <div id="backupStatusText" class="backup-status-text"></div>
+            <div class="backup-buttons-row">
+                <button id="exportDataBtn" class="btn-secondary" onclick="Backup.save()">バックアップを書き出す</button>
+                <label for="backupRestoreInput" id="importDataBtn" class="btn-secondary backup-restore-label">バックアップから復元</label>
+            </div>
+            <input type="file" id="backupRestoreInput" accept="application/json,.json" onchange="Backup.restoreFromFile(event)" hidden>
+            <p class="backup-help">記録は端末内に自動で世代保存されます。端末の故障・紛失にも備えるには、定期的に書き出したファイルをiCloud Driveなどへ保存してください。</p>
+        </div>
 
         <div id="historyVolumeStats" class="volume-stats"></div>
 
@@ -174,10 +186,20 @@
         <button class="btn-back btn-back-float" aria-label="ホームに戻る">←</button>
     </div>
 
+    <div id="recoveryOverlay" class="recovery-overlay" hidden>
+        <div class="recovery-box" role="dialog" aria-modal="true" aria-labelledby="recoveryTitle">
+            <h2 id="recoveryTitle">データを復元できます</h2>
+            <p id="recoveryMessage">保存データが見つかりません。バックアップファイルがあれば、ここから復元できます。</p>
+            <label for="backupRestoreInput" id="recoveryRestoreBtn" class="btn-primary backup-restore-label">バックアップファイルから復元</label>
+            <button id="recoveryFreshBtn" class="btn-secondary" onclick="Backup.startFresh()">新規で始める</button>
+        </div>
+    </div>
+
     <script src="js/storage.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/milestones.js"></script>
     <script src="js/migration.js"></script>
+    <script src="js/backup.js"></script>
     <script src="js/weather.js"></script>
     <script src="js/timer.js"></script>
     <script src="js/history.js"></script>

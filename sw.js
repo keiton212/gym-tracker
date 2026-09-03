@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gym-tracker-v34';
+const CACHE_NAME = 'gym-tracker-v35';
 const urlsToCache = [
     './',
     './index.html',
@@ -7,6 +7,7 @@ const urlsToCache = [
     './js/utils.js',
     './js/milestones.js',
     './js/migration.js',
+    './js/backup.js',
     './js/weather.js',
     './js/timer.js',
     './js/history.js',
