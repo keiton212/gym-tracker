@@ -5,7 +5,7 @@
 <h1>話して記録。返答は静かに。</h1>
 <nav><a href="#recording">録音の開始・状態へ ↓</a></nav>
 <p>読み上げ・通知音はありません。この画面でメニューと前回の記録を見ながら話せます。確定したセットは通常の履歴へ自動保存します。</p>
-<section><h2>メニューと前回の記録</h2><label for="menuDay">表示する曜日</label><select id="menuDay"></select><p id="menuNote" class="note"></p><div id="menuCards"></div></section>
+<section><h2>メニューと前回の記録</h2><label for="menuDay">メニュー・保存先の曜日</label><select id="menuDay"></select><p id="menuNote" class="note"></p><div id="menuCards"></div></section>
 <section id="setup"><h2>初回の接続設定</h2>
 <label for="endpoint">音声サービスURL</label><input id="endpoint" type="url" placeholder="https://gym-tracker-voice.…workers.dev">
 <label for="password">このアプリ専用の接続パスワード</label><input id="password" type="password" autocomplete="current-password">
@@ -26,6 +26,6 @@
 <section><h2>終了時の確認</h2><p>「筋トレ終了」で全体を照合します。確認中も声で訂正できます。</p><ol id="pending"></ol><p id="audit"></p>
 <p>「ベンチプレスの2セット目を7回に訂正」<br>「確認待ち1は無視して」<br>確認できたら「確認して保存」</p>
 <button id="auditBtn" class="secondary">全体を照合する</button><button id="finalize" class="secondary">確認して保存</button>
-<p id="result">80分の実機検証：未確認</p><button id="export" class="secondary">記録・診断を書き出す</button><button id="exportAudio" class="secondary">一時録音を書き出す</button></section>
+<p id="result">録音中断：0件</p><button id="export" class="secondary">記録・診断を書き出す</button><button id="exportAudio" class="secondary">一時録音を書き出す</button></section>
 <details><summary>バックグラウンド・音楽・通信について</summary><p>画面を切り替えてもアプリからは録音を停止しません。ただしiPhone側が処理を止める場合があり、ロック中の継続は未保証です。中断を検知したら停止表示になり、再開が必要です。明日の利用はこの画面を前面に保つ方法を推奨します。</p><p>Spotifyなどの音楽はマイク開始時にiPhone側で止まることがあります。Web版では同時再生を保証できません。音楽を再開した場合も、録音時間と入力レベルが進むことを確認してください。スピーカーの音楽が入ると誤認識の原因になるため、音楽はイヤホンを推奨します。</p><p>通信断は未送信分を残して再送します。録音自体が止まった区間は復元できません。約80分で約154MBの空き容量を使います。Aquaへの送信は行いません。</p></details>
 </main><script src="js/ai-voice-config.js"></script><script src="js/ai-voice-model.js"></script><script src="js/ai-voice-db.js"></script><script src="js/ai-voice-audio.js"></script><script src="js/ai-voice-menu.js"></script><script src="js/ai-voice-history.js"></script><script src="js/ai-voice.js"></script></body></html>

@@ -91,7 +91,7 @@
         $('finalize').disabled = busy || auditBusy || stopping || s.finalized || s.state.pending.length > 0 || jobs.some(j => j.status !== 'done');
         $('auditBtn').disabled = busy || auditBusy || s.finalized || jobs.some(j => j.status !== 'done');
         $('audit').textContent = auditBusy ? '発話と記録を照合しています…' : s.state.audit?.summary || '全体照合はまだ完了していません。';
-        $('result').textContent = `実機合格：未確認 · 録音中断${s.gaps.length}件 · ${s.interrupted ? '連続試験ではありません' : '発話と記録の照合が必要です'}`;
+        $('result').textContent = `録音中断：${s.gaps.length}件${s.interrupted ? ' · 中断した区間の記録を確認してください' : ''}`;
     }
     async function api(path, body) {
         const response = await fetch(endpoint + path, { method: 'POST', headers: { Authorization: `Bearer ${token}`,
