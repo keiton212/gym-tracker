@@ -1,49 +1,29 @@
 <!doctype html>
-<html lang="ja">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#111827">
-    <title>音声モード試験 — GymTracker</title>
-    <link rel="stylesheet" href="css/voice-test.css">
-</head>
-<body>
-<main>
-    <a href="index.html">← GymTracker</a>
-    <p class="eyebrow">GYMTRACKER / 音声モード試作</p>
-    <h1>話すだけで、次のセットへ。</h1>
-    <p>実際の履歴とは別に保存します。画面を開いたまま、返答が終わってから話してください。</p>
-    <section>
-        <div class="heading"><h2>80分の実機試験</h2><strong id="elapsed">00:00 / 80:00</strong></div>
-        <progress id="progress" max="4800" value="0"></progress>
-        <p id="status" role="status">マイクを有効にすると待ち受けを開始します。</p>
-        <p id="wake">画面の点灯維持：未開始</p>
-        <button id="enable">マイクを有効にする</button>
-        <button id="stop" class="secondary" disabled>試験を中断</button>
-        <p id="reply" aria-live="polite">「筋トレ開始」と話してください。</p>
-        <p id="heard"></p>
-    </section>
-    <section>
-        <h2>使える種目</h2><p id="names"></p>
-        <p>「ベンチプレス70キロ3回」→「5回」→「4回」<br>「訂正、6回」「今の取り消し」「今の記録」<br>「筋トレ終了」→「はい」</p>
-        <p class="note">回数は「回」、重量は「キロ」を付けます。重量だけの変更もできます。種目を変えたら重量を指定してください。</p>
-    </section>
-    <section><h2>試作記録</h2><ol id="sets"></ol><p id="summary">まだ記録がありません。</p></section>
-    <section>
-        <h2>試験の準備と結果</h2>
-        <p>iPhoneではHTTPSで開いてください。マイク許可が必要です。認識サービスに音声が送信される場合があり、通信なしでの動作は保証しません。音声ファイルはこの試作には保存しません。</p>
-        <p>無線マイクから入力されているか、開始前に確かめてください。返答は現在の音声出力先から流れます。他のトレーニング画面は閉じて試してください。</p>
-        <label><input id="timerSound" type="checkbox" checked> 試験中、5分ごとにタイマー音を鳴らす</label>
-        <p id="result">実機合格：未確認。80分経過だけでは自動合格にしません。</p>
-        <button id="export" class="secondary">試作記録・診断ログを書き出す</button>
-        <button id="new" class="secondary">新しい試験（前回分を先に書き出してください）</button>
-        <details><summary>PCでコマンド動作を確認</summary>
-            <p>マイクを使わない操作確認用です。80分試験の合格には使えません。</p>
-            <form id="simulate"><label for="command">発話内容</label><input id="command" required placeholder="ベンチプレス70キロ3回"><button>送信</button></form>
-        </details>
-    </section>
-</main>
-<script src="js/voice-session.js"></script>
-<script src="js/voice-test.js"></script>
-</body>
-</html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#111827"><title>無音AI音声記録 — GymTracker</title><link rel="stylesheet" href="css/voice-test.css"></head>
+<body><main>
+<a href="index.html">← GymTracker</a><p class="eyebrow">GYMTRACKER / AI音声記録・検証版</p>
+<h1>話して記録。返答は静かに。</h1>
+<p>読み上げ・通知音はありません。記録は通常の履歴と別に保存します。画面を開いたまま使ってください。</p>
+<section id="setup"><h2>初回の接続設定</h2>
+<label for="endpoint">音声サービスURL</label><input id="endpoint" type="url" placeholder="https://gym-tracker-voice.…workers.dev">
+<label for="password">このアプリ専用の接続パスワード</label><input id="password" type="password" autocomplete="current-password">
+<button id="connect">接続する</button><p class="note">OpenAIのAPIキーは入力しません。音声・登録種目名・必要な記録をCloudflare経由でOpenAIに送ります。音声は端末に一時保存し、最終確定後に削除します。</p></section>
+<section><div class="heading"><h2 id="phase">録音の準備</h2><strong id="elapsed">00:00 / 80:00</strong></div>
+<progress id="progress" max="4800" value="0"></progress>
+<p id="status" role="status">接続設定を確認しています。</p><p id="captureStatus">録音：停止</p><p id="queueStatus">送信待ち：0</p><p id="wake">画面の点灯維持：未開始</p>
+<label for="mic">マイク（許可後に表示されます）</label><select id="mic"><option value="">iPhoneが選択したマイク</option></select>
+<button id="enable" disabled>マイクを有効にして開始</button><button id="stop" class="secondary" disabled>中断・録音を停止</button>
+<p id="heard"></p><p id="reply" aria-live="polite"></p>
+<button id="retry" class="secondary">未送信分を再処理</button><button id="new" class="secondary">新しい試験</button>
+<label for="sessions">保存済みの検証記録・未確定録音</label><select id="sessions"></select><button id="loadSession" class="secondary">選んだ記録を開く</button>
+</section>
+<section><h2>登録済みの種目</h2><p id="names"></p>
+<p>「ベンチプレス70キロ8回」→「6回」→「65キロで8回」<br>「20キロ10回を3セット」<br>「ディップス、自重で10回、8回、6回」</p>
+<p class="note">種目と重量は省略できます。種目を変えたら重量を指定。「10回を3セット」は完了した3セットです。</p></section>
+<section><h2>今回の記録</h2><ol id="sets"></ol><p id="summary"></p></section>
+<section><h2>終了時の確認</h2><p>「筋トレ終了」で全体を照合します。確認中も声で訂正できます。</p><ol id="pending"></ol><p id="audit"></p>
+<p>「ベンチプレスの2セット目を7回に訂正」<br>「確認待ち1は無視して」<br>確認できたら「確認して保存」</p>
+<button id="auditBtn" class="secondary">全体を照合する</button><button id="finalize" class="secondary">確認して保存</button>
+<p id="result">80分の実機検証：未確認</p><button id="export" class="secondary">記録・診断を書き出す</button><button id="exportAudio" class="secondary">一時録音を書き出す</button></section>
+<details><summary>通信・録音について</summary><p>通信断は未送信分を残して再送します。画面ロックやマイク切断で録音が止まった区間は復元できません。約80分の録音には約154MBの空き容量を使います。録音・確認中はこの画面を前面に保ってください。Aquaへの送信は行いません。</p></details>
+</main><script src="js/ai-voice-config.js"></script><script src="js/ai-voice-model.js"></script><script src="js/ai-voice-db.js"></script><script src="js/ai-voice-audio.js"></script><script src="js/ai-voice.js"></script></body></html>
