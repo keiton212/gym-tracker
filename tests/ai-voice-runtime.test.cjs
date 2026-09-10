@@ -16,7 +16,7 @@ function runtime(){
  navigator:{onLine:true,storage:{estimate:async()=>({quota:1e9,usage:0})},mediaDevices:{getUserMedia:async()=>({getAudioTracks:()=>[{label:'test mic',addEventListener:noop}],getTracks:()=>[{stop:noop}]}),enumerateDevices:async()=>[]}},
  document:{getElementById:element,createElement:()=>({click:noop,replaceChildren(...children){this.children=children;}}),addEventListener:(name,fn)=>listeners[name]=fn,hidden:false},addEventListener:noop,
  setTimeout,clearTimeout,setInterval:fn=>intervals.push(fn),
- fetch:async(url,options={})=>{calls.push(url);if(url.endsWith('/health'))return Response.json({ready:true});if(url.endsWith('/session'))return Response.json({authenticated:true});
+ fetch:async(url,options={})=>{calls.push(url);if(url.endsWith('/health'))return Response.json({ready:true,providers:{openai:true,codex:true,groq:false}});if(url.endsWith('/session'))return Response.json({authenticated:true});
  if(url.endsWith('/analyze')){if(c.offline)throw Error('offline');const meta=JSON.parse(options.body.get('metadata'));const next=packets.shift();assert.ok(next,'expected packet');return Response.json({id:meta.id,...next});}
  if(url.endsWith('/audit'))return Response.json({summary:'一致',issues:[]});throw Error('Unexpected '+url);}};
  c.window=c;vm.createContext(c);vm.runInContext(fs.readFileSync('js/ai-voice.js','utf8'),c);
@@ -90,4 +90,13 @@ test('failed history write retains audio and retry saves once',async()=>{
  await r.emit(.1);await r.emit(0);await r.emit(0);await r.emit(0);await r.tick();assert.equal(r.tables.blocks.size,4);assert.equal(r.state().finalized,false);assert.match(r.element('summary').textContent,/保存失敗/);
  r.c.localStorage.setItem=original;await r.element('retry').onclick();await settle();const stored=JSON.parse(r.stored.get('gym_records'));assert.equal(stored[r.state().recordDate][r.state().dayIndex]['ベンチプレス'].sets.length,1);
  await r.element('stop').onclick();
+});
+
+
+test('provider selection is persisted and locked after recording starts',async()=>{
+ const r=runtime();await r.init();await r.element('providerCodex').onclick();assert.equal(r.state().provider,'codex');
+ assert.equal(r.element('providerGroq').disabled,true);await r.start();assert.equal(r.element('providerOpenai').disabled,true);
+ await r.element('providerOpenai').onclick();assert.equal(r.state().provider,'codex');
+ await r.element('stop').onclick();await r.element('new').onclick();assert.equal(r.state().provider,'codex');
+ await r.element('providerOpenai').onclick();assert.equal(r.state().provider,'openai');
 });

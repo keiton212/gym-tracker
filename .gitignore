@@ -4,3 +4,4 @@ node_modules/
 .env*
 voice-worker/.wrangler/
 voice-worker/worker-configuration.d.ts
+__pycache__/

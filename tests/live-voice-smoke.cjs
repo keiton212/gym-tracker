@@ -11,8 +11,16 @@ const {wav}=require('../js/ai-voice-audio.js');
  for(let at=12;at+8<=buf.length;){const size=buf.readUInt32LE(at+4);if(buf.toString('ascii',at,at+4)==='data'){pcm=new Int16Array(size/2);for(let i=0;i<pcm.length;i++)pcm[i]=buf.readInt16LE(at+8+i*2);break;}at+=8+size+(size%2);}
  if(!pcm)throw Error('Missing PCM');
  const form=new FormData();form.set('audio',wav([pcm]),'speech.wav');
- form.set('metadata',JSON.stringify({id:'synthetic-deploy-test',names:['ベンチプレス','ディップス'],context:{current:null,weight:null,sets:[],pending:[]}}));
+ form.set('metadata',JSON.stringify({provider:process.env.GYM_TEST_PROVIDER || 'openai',id:'synthetic-deploy-test-'+Date.now(),names:['ベンチプレス','ディップス'],context:{current:null,weight:null,sets:[],pending:[]}}));
  const r=await fetch(base+'/analyze',{method:'POST',headers:{Origin:origin,Authorization:'Bearer '+token},body:form});
  if(!r.ok)throw Error('Analysis failed: '+r.status+' '+await r.text());
- console.log(JSON.stringify(await r.json(),null,2));
+ let result=await r.json();const started=Date.now();
+ while(result.queued){
+  if(Date.now()-started>240000)throw Error('PC result timed out');
+  await new Promise(resolve=>setTimeout(resolve,3000));
+  const check=await fetch(base+'/pc-result',{method:'POST',headers:{Origin:origin,Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({id:result.id})});
+  if(!check.ok)throw Error('Polling failed: '+check.status);result=await check.json();
+ }
+ if(result.error)throw Error(result.error);
+ console.log(JSON.stringify(result,null,2));
 })().catch(e=>{console.error(e.message);process.exitCode=1;});

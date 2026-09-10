@@ -7,6 +7,9 @@
     let activeStart = null, silence = 0, continuation = false, flushResolve;
     let retryAt = 0, failures = 0, auditWanted = false, finalizeWanted = false;
     let editing = false;
+    let providers = {openai:true,codex:false,groq:false};
+    let preferredProvider = localStorage.getItem('gym_voice_provider') || 'openai';
+    const providerLabels = {openai:'OpenAI API',codex:'Codex（PC）',groq:'Groq API'};
     let endpoint = localStorage.getItem('gym_ai_voice_endpoint') || GYM_VOICE_ENDPOINT;
     let token = localStorage.getItem('gym_ai_voice_token') || '';
     const message = text => { $('status').textContent = text; };
@@ -20,7 +23,7 @@
     }
     const fresh = () => ({ id: crypto.randomUUID(), createdAt: Date.now(), state: AIVoiceModel.initial(names()),
         logs: [], gaps: [], capturedMs: 0, blockNo: 0, finalized: false, startedAt: null, interrupted: false, mode: 'live',
-        recordDate: calendarDate(), dayIndex: new Date().getDay() });
+        provider: preferredProvider, recordDate: calendarDate(), dayIndex: new Date().getDay() });
     function syncHistory(remove = false) {
         try { VoiceHistory.sync(localStorage, s, remove); s.historyError = ''; }
         catch (e) { s.historyError = e.message; throw e; }
@@ -64,6 +67,12 @@
     function render() {
         if (!s) return;
         renderMenu();
+        const provider = s.provider || 'openai';
+        for (const [key,id] of Object.entries({openai:'providerOpenai',codex:'providerCodex',groq:'providerGroq'})) {
+            $(id).disabled = recording || busy || auditBusy || stopping || editing || !!s.startedAt || !providers[key];
+            $(id).textContent = (provider === key ? '選択中：' : '') + providerLabels[key] + (!providers[key] ? '（設定待ち）' : '');
+        }
+        $('providerNote').textContent = provider === 'codex' ? 'Codex方式：PCの起動・中継プログラムが必要です。PCで音声認識し、ChatGPTの契約枠で整理します。PC停止時は未処理分が端末に残ります。' : provider === 'groq' ? 'Groq方式：Whisper large-v3-turboで認識、GPT-OSSで整理します。GroqのAPI利用枠を使います。' : 'OpenAI方式：従来どおりgpt-4o-transcribeで認識、gpt-4.1-miniで整理します。API従量課金です。';
         $('names').textContent = s.state.names.join(' ／ ') || '登録種目がありません。先にメニューを登録してください。';
         const counts = {};
         $('sets').replaceChildren(...s.state.sets.map(set => {
@@ -98,7 +107,19 @@
             ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }) },
             body: body instanceof FormData ? body : JSON.stringify(body), signal: AbortSignal.timeout(125000) });
         const result = await response.json();
-        if (!response.ok) { const e = Error(result.error || '通信に失敗しました'); e.status = response.status; throw e; }
+        const errors = {pc_offline:'PCの中継プログラムが停止中です。PCで起動すると再送します',pc_processing_failed:'PCでの解析に失敗しました。録音を保持して再試行します',job_expired:'PCの処理期限を過ぎました。録音を再送します',groq_not_configured:'GroqのAPI設定待ちです'};
+        if (result.error && response.ok) throw Error(errors[result.error] || result.error);
+        if (!response.ok) { const e = Error(errors[result.error] || result.error || '通信に失敗しました'); e.status = response.status; throw e; }
+        return result;
+    }
+    async function processed(path, body) {
+        let result = await api(path, body);
+        const deadline = Date.now() + 230000;
+        while (result.queued) {
+            if (Date.now() > deadline) throw Error('PCの処理待ちです。未処理分は保持しています');
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            result = await api('/pc-result', {id:result.id});
+        }
         return result;
     }
     async function health() {
@@ -107,6 +128,7 @@
             const r = await fetch(endpoint + '/health', { signal: AbortSignal.timeout(10000) }); const h = await r.json();
             let authenticated=false;
             if(token && h.ready){ const check=await fetch(endpoint+'/session',{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)}); authenticated=check.ok && (await check.json()).authenticated; }
+            providers = h.providers || {openai:true,codex:false,groq:false};
             ready = r.ok && h.ready && authenticated;
             message(!h.ready ? '音声サービスの秘密設定待ちです。' : authenticated ? '開始できます。音は出ません。' : '専用パスワードで接続してください。');
         } catch { ready = false; message('音声サービスに接続できません。保存済みの記録は残っています。'); }
@@ -201,9 +223,9 @@
             const blocks = await db.blocks(s.id, job.start, job.end);
             if (blocks.length !== job.end - job.start + 1) throw Error('録音区間に欠落があります。書き出して確認してください');
             const form = new FormData(); form.set('audio', VoiceAudio.wav(blocks.map(b => b.pcm)), 'speech.wav');
-            form.set('metadata', JSON.stringify({ id: job.id, names: s.state.names, context: { current: s.state.current, weight: s.state.weight,
+            form.set('metadata', JSON.stringify({ provider:s.provider || 'openai', id: job.id, names: s.state.names, context: { current: s.state.current, weight: s.state.weight,
                 sets: s.state.sets, pending: s.state.pending } }));
-            const packet = await api('/analyze', form); if (packet.id !== job.id) throw Error('処理IDが一致しません');
+            const packet = await processed('/analyze', form); if (packet.id !== job.id) throw Error('処理IDが一致しません');
             writes = writes.then(async () => {
                 const next = { ...s, state: AIVoiceModel.apply(s.state, { ...packet, at: job.at, boundary: job.boundary }) };
                 const done = { ...job, status: 'done', text: packet.text, completedAt: Date.now() };
@@ -225,7 +247,7 @@
         if (busy || auditBusy || jobs.some(j => j.status !== 'done') || s.finalized) return;
         auditWanted = false; auditBusy = true; const revision = s.state.revision; render();
         try {
-            const result = await api('/audit', { id: `${s.id}:audit:${revision}`, names: s.state.names, events: s.state.events, sets: s.state.sets, pending: s.state.pending });
+            const result = await processed('/audit', { provider:s.provider || 'openai', id: `${s.id}:audit:${revision}`, names: s.state.names, events: s.state.events, sets: s.state.sets, pending: s.state.pending });
             writes = writes.then(async () => {
                 if (revision !== s.state.revision) { auditWanted = true; return; }
                 s.state.audit = { revision, summary: result.summary, issues: result.issues };
@@ -264,6 +286,11 @@
             token = result.token; localStorage.setItem('gym_ai_voice_endpoint', endpoint); localStorage.setItem('gym_ai_voice_token', token); $('password').value = '';
             retryAt = 0; await health();
         } catch (e) { message('接続できません：' + e.message); }
+    };
+    for (const [provider,id] of Object.entries({openai:'providerOpenai',codex:'providerCodex',groq:'providerGroq'})) $(id).onclick = async () => {
+        if (recording || busy || auditBusy || stopping || editing || s.startedAt || !providers[provider]) return;
+        s.provider = preferredProvider = provider; localStorage.setItem('gym_voice_provider', provider); await persist(); render();
+        message(providerLabels[provider]+'を選びました。');
     };
     $('enable').onclick = start; $('stop').onclick = () => stop('手動で中断しました', false);
     $('retry').onclick = async () => { try { if(!editing && !busy) { syncHistory(); await persist(); } retryAt = 0; void pump(); } catch(e) { message('履歴への保存に失敗：'+e.message); } render(); };

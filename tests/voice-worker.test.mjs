@@ -5,6 +5,19 @@ const digest=async text=>Buffer.from(await crypto.subtle.digest('SHA-256',new Te
 async function env(){return {ALLOWED_ORIGIN:origin,AUTH_SECRET:'test-only-secret',USER_PASS_HASH:await digest('test-password'),OPENAI_API_KEY:'test-only-key',
  LOGIN_LIMIT:{limit:async()=>({success:true})},BUDGET:{idFromName:()=>'',get:()=>({fetch:async()=>new Response('{}')})}};}
 const req=(path,body,headers={})=>new Request('https://test'+path,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json',...headers},body:JSON.stringify(body)});
+
+test('PC bridge uses a separate credential and never falls back to OpenAI',async()=>{
+ const e={...await env(),CODEX_BRIDGE_SECRET:'private-pc-key',RELAY:{idFromName:()=>'',get:()=>({fetch:async(url,opts)=>Response.json(new URL(url).pathname === '/status' ? {online:true} : {relay:new URL(url).pathname,body:JSON.parse(opts.body)})})}};
+ const {token}=await (await worker.fetch(req('/login',{password:'test-password'}),e)).json();
+ assert.equal((await worker.fetch(req('/bridge/poll',{}, {Authorization:'Bearer '+token}),e)).status,401);
+ assert.equal((await worker.fetch(req('/bridge/poll',{}, {Authorization:'Bearer private-pc-key',Origin:''}),e)).status,200);
+ const oldFetch=globalThis.fetch;globalThis.fetch=()=>{throw Error('Unexpected paid fallback');};
+ try {
+  const r=await worker.fetch(req('/audit',{provider:'codex',id:'pc-test',names:[]},{Authorization:'Bearer '+token}),e);
+  assert.equal(r.status,200);const result=await r.json();assert.equal(result.relay,'/enqueue');assert.equal(result.body.payload.kind,'audit');
+  assert.equal((await worker.fetch(req('/audit',{provider:'groq',id:'groq-test',names:[]},{Authorization:'Bearer '+token}),e)).status,503);
+ } finally {globalThis.fetch=oldFetch;}
+});
 test('auth, CORS, secret readiness and oversized requests fail closed',async()=>{
  const e=await env();
  assert.equal((await worker.fetch(req('/audit',{}),e)).status,401);

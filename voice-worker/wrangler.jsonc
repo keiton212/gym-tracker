@@ -8,8 +8,8 @@
     "TRANSCRIBE_MODEL": "gpt-4o-transcribe",
     "PARSE_MODEL": "gpt-4.1-mini"
   },
-  "durable_objects": { "bindings": [{ "name": "BUDGET", "class_name": "VoiceBudget" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["VoiceBudget"] }],
+  "durable_objects": { "bindings": [{ "name": "BUDGET", "class_name": "VoiceBudget" }, {"name":"RELAY","class_name":"VoiceRelay"}] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["VoiceBudget"] }, {"tag":"v2","new_sqlite_classes":["VoiceRelay"]}],
   "ratelimits": [{ "name": "LOGIN_LIMIT", "namespace_id": "1101", "simple": { "limit": 10, "period": 60 } }],
   "observability": { "enabled": false }
 }
