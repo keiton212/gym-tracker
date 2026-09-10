@@ -247,7 +247,7 @@
         if (busy || auditBusy || jobs.some(j => j.status !== 'done') || s.finalized) return;
         auditWanted = false; auditBusy = true; const revision = s.state.revision; render();
         try {
-            const result = await processed('/audit', { provider:s.provider || 'openai', id: `${s.id}:audit:${revision}`, names: s.state.names, events: s.state.events, sets: s.state.sets, pending: s.state.pending });
+            const result = await processed('/audit', { provider:s.provider || 'openai', id: `${s.id}:audit:${revision}:${s.state.pending.length}`, names: s.state.names, events: s.state.events, sets: s.state.sets, pending: s.state.pending });
             writes = writes.then(async () => {
                 if (revision !== s.state.revision) { auditWanted = true; return; }
                 s.state.audit = { revision, summary: result.summary, issues: result.issues };
@@ -304,7 +304,7 @@
     };
     async function sessionOptions(){
         const sessions=(await db.all('sessions')).sort((a,b)=>b.createdAt-a.createdAt);
-        $('sessions').replaceChildren(...sessions.map(x=>new Option(`${new Date(x.createdAt).toLocaleString('ja-JP')} · ${x.mode === 'live' ? '通常記録' : '旧テスト'} · ${x.finalized?'確定済み':'未確定'}`,x.id)));
+        $('sessions').replaceChildren(...sessions.map(x=>new Option(`${new Date(x.createdAt).toLocaleString('ja-JP')} · ${x.mode === 'live' ? '通常記録' : '旧テスト'} · ${providerLabels[x.provider || 'openai']} · ${x.finalized?'確定済み':'未確定'}`,x.id)));
         $('sessions').value=s.id;
     }
     $('loadSession').onclick=async()=>{
