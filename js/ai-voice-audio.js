@@ -18,6 +18,17 @@
         for (const part of parts) for (const sample of part) { v.setInt16(at, sample, true); at += 2; }
         return new Blob([bytes], { type: 'audio/wav' });
     }
-    const api = { downsample, wav };
+    // Short utterances must not be diluted by averaging over a whole second.
+    function level(pcm) {
+        let peak = 0, voiced = 0;
+        for (let i = 0; i < pcm.length; i += 320) {
+            const end = Math.min(i + 320, pcm.length); let sum = 0;
+            for (let k = i; k < end; k++) sum += (pcm[k] / 32768) ** 2;
+            const rms = Math.sqrt(sum / (end - i)); peak = Math.max(peak, rms);
+            if (rms > 0.006) voiced += end - i;
+        }
+        return { peak, speech: voiced >= 640 };
+    }
+    const api = { downsample, wav, level };
     globalThis.VoiceAudio = api; if (typeof module !== 'undefined') module.exports = api;
 })();

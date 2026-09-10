@@ -28,3 +28,21 @@ test('malformed audio rejected without calling OpenAI',async()=>{
  const r=await worker.fetch(new Request('https://test/analyze',{method:'POST',headers:{Origin:origin,Authorization:'Bearer '+token},body:form}),e);
  assert.equal(r.status,400);
 });
+test('low-confidence numbers are held for review rather than applied',async()=>{
+ const e={...await env(),TRANSCRIBE_MODEL:'gpt-4o-transcribe',PARSE_MODEL:'gpt-4.1-mini'};
+ const {token}=await (await worker.fetch(req('/login',{password:'test-password'}),e)).json();
+ const {createRequire}=await import('node:module');const A=createRequire(import.meta.url)('../js/ai-voice-audio.js');
+ const oldFetch=globalThis.fetch;let confidence=-2;
+ globalThis.fetch=async(url,opts)=>{
+  if(url.endsWith('audio/transcriptions')){
+   assert.equal(opts.body.get('include[]'),'logprobs');
+   return Response.json({text:'ベンチプレス70キロ8回',logprobs:[{token:'70',logprob:confidence}]});
+  }
+  return Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify({uncertain:false,reason:'',operations:[{kind:'append',name:'ベンチプレス',weight:70,reps:[8]}]})}}]});
+ };
+ try{
+  const call=async()=>{const form=new FormData();form.set('audio',A.wav([new Int16Array(16000)]),'speech.wav');form.set('metadata',JSON.stringify({id:'test',names:['ベンチプレス'],context:{}}));return (await worker.fetch(new Request('https://test/analyze',{method:'POST',headers:{Origin:origin,Authorization:'Bearer '+token},body:form}),e)).json();};
+  const weak=await call();assert.equal(weak.uncertain,true);assert.equal(weak.operations.length,0);
+  confidence=-.01;const clear=await call();assert.equal(clear.uncertain,false);assert.equal(clear.operations[0].weight,70);
+ }finally{globalThis.fetch=oldFetch;}
+});

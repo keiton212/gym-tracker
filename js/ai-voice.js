@@ -18,8 +18,33 @@
     }
     const fresh = () => ({ id: crypto.randomUUID(), createdAt: Date.now(), state: AIVoiceModel.initial(names()),
         logs: [], gaps: [], capturedMs: 0, blockNo: 0, finalized: false, startedAt: null, interrupted: false, mode: 'validation' });
+    function renderMenu() {
+        try {
+            const menu = JSON.parse(localStorage.getItem('gym_menu') || '{}');
+            const records = JSON.parse(localStorage.getItem('gym_records') || '{}');
+            const day = Number($('menuDay').value), date = new Date(s.createdAt);
+            const before = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+            const cards = (menu[day]?.exercises || []).map(e => {
+                const card = document.createElement('article'); card.className = 'exercise-card';
+                const title = document.createElement('h3'); title.textContent = e.name;
+                const plan = document.createElement('p'); plan.textContent = `メニュー：${VoiceMenu.weight(e.weight)} · ${e.sets || '未設定'}セット · ${e.repsRange || '未設定'}回`;
+                const rows = [e.name, ...(Array.isArray(e.alternatives) ? e.alternatives : [])].flatMap(name => {
+                    const last = document.createElement('p'); last.className = 'note';
+                    last.textContent = `${name === e.name ? '前回' : '代替：'+name}：${VoiceMenu.previous(records, name, day, before)}`;
+                    const now = document.createElement('p'); now.className = 'current-sets';
+                    const sets = s.state.sets.filter(x => x.name === name);
+                    now.textContent = `${name === e.name ? '今回' : name+'・今回'}：${sets.length ? sets.map((x,i) => `${i+1}: ${VoiceMenu.weight(x.weight)} × ${x.reps}回`).join(' ／ ') : 'まだ記録なし'}`;
+                    return [last, now];
+                });
+                card.replaceChildren(title, plan, ...rows); return card;
+            });
+            $('menuCards').replaceChildren(...cards);
+            $('menuNote').textContent = cards.length ? '前回は選んだ曜日の、今回より前の日付の通常履歴です。メニューの目標値を実績へ自動入力しません。' : 'この曜日のメニューは空です。別の曜日を選ぶか、ホームで登録してください。';
+        } catch { $('menuNote').textContent = 'メニュー・履歴を読み込めません。元のデータは変更していません。'; }
+    }
     function render() {
         if (!s) return;
+        renderMenu();
         $('names').textContent = s.state.names.join(' ／ ') || '登録種目がありません。先にメニューを登録してください。';
         const counts = {};
         $('sets').replaceChildren(...s.state.sets.map(set => {
@@ -78,12 +103,11 @@
         const pcm = VoiceAudio.downsample(data.pcm, data.rate), number = blockNo++;
         await db.put('blocks', { id: `${s.id}:${number}`, session: s.id, number, pcm, at: Date.now() });
         s.capturedMs += pcm.length / 16; s.blockNo = blockNo;
-        let sum = 0; for (const sample of pcm) sum += (sample / 32768) ** 2;
-        const rms = Math.sqrt(sum / pcm.length);
+        const { peak: rms, speech } = VoiceAudio.level(pcm);
         if (recording) $('captureStatus').textContent = `録音中 · ${stream?.getAudioTracks()[0]?.label || 'マイク'} · 入力レベル ${Math.round(rms * 1000)}`;
-        if (rms > 0.009) { if (activeStart === null) activeStart = Math.max(jobs.at(-1)?.end + 1 || 0, number - 1); silence = 0; }
+        if (speech) { if (activeStart === null) activeStart = Math.max(jobs.at(-1)?.end + 1 || 0, number - 1); silence = 0; }
         else if (activeStart !== null) silence++;
-        if (activeStart !== null && silence >= 2) { await makeJob(number); continuation = false; }
+        if (activeStart !== null && silence >= 3) { await makeJob(number); continuation = false; }
         else if (activeStart !== null && number - activeStart >= 39) { await makeJob(number, true); activeStart = number + 1; }
         await persist();
     }
@@ -104,6 +128,9 @@
             node.port.onmessage = ({ data }) => {
                 if (data.flushed) { flushResolve?.(); return; }
                 if (!data.pcm) return;
+                if (recording && Date.now() - lastBlock > 6000) {
+                    void stop('音声の受信に6秒以上の空白があります。中断区間を確認してください', true);
+                }
                 lastBlock = Date.now();
                 if (data.sequence !== received++) s.gaps.push({ at: Date.now(), reason: '音声ブロックが不連続です' });
                 buffered++;
@@ -147,7 +174,7 @@
             if (blocks.length !== job.end - job.start + 1) throw Error('録音区間に欠落があります。書き出して確認してください');
             const form = new FormData(); form.set('audio', VoiceAudio.wav(blocks.map(b => b.pcm)), 'speech.wav');
             form.set('metadata', JSON.stringify({ id: job.id, names: s.state.names, context: { current: s.state.current, weight: s.state.weight,
-                sets: s.state.sets.slice(-80), pending: s.state.pending } }));
+                sets: s.state.sets, pending: s.state.pending } }));
             const packet = await api('/analyze', form); if (packet.id !== job.id) throw Error('処理IDが一致しません');
             writes = writes.then(async () => {
                 const next = { ...s, state: AIVoiceModel.apply(s.state, { ...packet, at: job.at, boundary: job.boundary }) };
@@ -236,7 +263,18 @@
         if(last<0){ message('一時録音はありません'); return; }
         for(let i=0;i<=last;i+=600){ const blocks=await db.blocks(s.id,i,i+599); download(VoiceAudio.wav(blocks.map(b=>b.pcm)),`gym-audio-${s.id}-${i}.wav`); }
     };
-    document.addEventListener('visibilitychange', () => { if (recording && document.hidden) void stop('画面が非表示になり録音を中断しました',true); });
+    $('menuDay').replaceChildren(...['日','月','火','水','木','金','土'].map((day,i) => new Option(day+'曜日',String(i))));
+    $('menuDay').value = String(new Date().getDay());
+    $('menuDay').onchange = renderMenu;
+    document.addEventListener('visibilitychange', () => {
+        if (!recording) return;
+        log(document.hidden ? 'page-hidden' : 'page-visible');
+        if (!document.hidden) {
+            if (Date.now()-lastBlock > 6000) { void stop('画面を離れている間に録音が中断しました。再開してください', true); return; }
+            if (!wake) void acquireWake();
+        }
+        writes = writes.then(persist).catch(e => { void stop('状態を保存できません：'+e.message,true); });
+    });
     window.addEventListener('online', () => { retryAt=0; void pump(); });
     setInterval(() => {
         if (!s) return;

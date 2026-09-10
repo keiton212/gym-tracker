@@ -111,9 +111,16 @@ export async function handle(request, env) {
     }
     const form = new FormData(); form.set('file', file, 'speech.wav'); form.set('model', env.TRANSCRIBE_MODEL); form.set('language', 'ja');
     form.set('prompt', `筋トレの実績記録。種目候補: ${input.names.join('、')}。重量はキロ、回数は回。聞こえた内容のみ。`);
+    form.set('response_format', 'json'); form.append('include[]', 'logprobs');
     const transcript = await upstream('audio/transcriptions', env, form, true);
     const text = typeof transcript.text === 'string' ? transcript.text.slice(0, 10000) : '';
     const parsed = text.trim() ? await structured(env, prompt, { text, names: input.names, context: input.context }, schema) : { uncertain: false, reason: '', operations: [] };
+    // A conservative review signal, not a calibrated accuracy score. Missing scores
+    // are unknown; never interpret them as perfect recognition.
+    const weak = (transcript.logprobs || []).filter(t => Number.isFinite(t.logprob) && t.logprob < -1.5 && /[0-9０-９一二三四五六七八九十百]/u.test(t.token || ''));
+    if (weak.length && parsed.operations.some(op => !['ignore','review'].includes(op.kind))) {
+        parsed.uncertain = true; parsed.reason = '数字の聞き取りが不確かです。終了時に元の発話を確認してください'; parsed.operations = [];
+    }
     return json({ id: input.id, text, ...parsed });
 }
 export default {
