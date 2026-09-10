@@ -8,6 +8,16 @@
         const date = session.recordDate, day = String(session.dayIndex);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^[0-6]$/.test(day)) throw Error('保存日・曜日が不明です');
         const exercises = structuredClone(records[date]?.[day] || {});
+        const signature = data => JSON.stringify(Object.entries(data).flatMap(([name, record]) =>
+            record.perSetWeight && Array.isArray(record.sets) ? record.sets.filter(x => x?.voiceSessionId === session.id).map(x =>
+                [name, x.voiceSetId, String(x.weight), String(x.reps)]) : []).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
+        const observed = signature(exercises);
+        const wanted = JSON.stringify(session.state.sets.map(x => [x.name,x.id,String(x.weight),String(x.reps)]).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
+        // The desired signature also accepts a retry after a successful localStorage
+        // write whose following IndexedDB checkpoint was interrupted.
+        if (!remove && session.historySignature !== undefined && observed !== session.historySignature && observed !== wanted) {
+            throw Error('この音声記録の履歴が別画面で編集・削除されています。上書きを停止しました');
+        }
         for (const name of Object.keys(exercises)) {
             const record = exercises[name];
             if (!record.perSetWeight || !Array.isArray(record.sets)) continue;
@@ -29,6 +39,7 @@
         if (Object.keys(exercises).length) { records[date] ||= {}; records[date][day] = exercises; }
         else if (records[date]) { delete records[date][day]; if (!Object.keys(records[date]).length) delete records[date]; }
         store.setItem('gym_records', JSON.stringify(records));
+        session.historySignature = signature(exercises);
     }
     globalThis.VoiceHistory = { sync };
     if (typeof module !== 'undefined') module.exports = { sync };

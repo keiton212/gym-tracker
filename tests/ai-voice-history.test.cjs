@@ -16,3 +16,10 @@ test('old tests never enter history and malformed history is not overwritten',()
  const store=fixture();sync(store,{...session(),mode:'validation'});assert.deepEqual(store.read(),{});
  let wrote=false;assert.throws(()=>sync({getItem:()=>'{bad',setItem:()=>{wrote=true;}},session()));assert.equal(wrote,false);
 });
+test('external edits are not overwritten and a crash between history and checkpoint is retryable',()=>{
+ const store=fixture(),s=session();sync(store,s);const previous=structuredClone(s);
+ s.state.sets[0].reps=6;sync(store,s);previous.state.sets[0].reps=6;sync(store,previous);
+ const changed=store.read();changed['2026-09-11'][5].bench.sets[0].reps='9';store.setItem('gym_records',JSON.stringify(changed));
+ assert.throws(()=>sync(store,s),/上書きを停止/);assert.equal(store.read()['2026-09-11'][5].bench.sets[0].reps,'9');
+ store.setItem('gym_records','{}');assert.throws(()=>sync(store,s),/上書きを停止/);assert.deepEqual(store.read(),{});
+});
