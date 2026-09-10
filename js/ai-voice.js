@@ -6,24 +6,43 @@
     let writes = Promise.resolve(), blockNo = 0, lastBlock = 0, received = 0, buffered = 0;
     let activeStart = null, silence = 0, continuation = false, flushResolve;
     let retryAt = 0, failures = 0, auditWanted = false, finalizeWanted = false;
+    let editing = false;
     let endpoint = localStorage.getItem('gym_ai_voice_endpoint') || GYM_VOICE_ENDPOINT;
     let token = localStorage.getItem('gym_ai_voice_token') || '';
     const message = text => { $('status').textContent = text; };
     const persist = () => db.put('sessions', s);
     const log = (type, detail = '') => { s.logs.push({ at: Date.now(), type, detail }); if (s.logs.length > 6000) s.logs.shift(); };
+    const calendarDate = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
     function names() {
         const menu = JSON.parse(localStorage.getItem('gym_menu') || '{}'), today = new Date().getDay();
         return [...new Set([today, ...[0,1,2,3,4,5,6].filter(i => i !== today)].flatMap(day =>
             (menu[day]?.exercises || []).flatMap(e => [e.name, ...(Array.isArray(e.alternatives) ? e.alternatives : [])])).filter(n => typeof n === 'string' && n.trim()))];
     }
     const fresh = () => ({ id: crypto.randomUUID(), createdAt: Date.now(), state: AIVoiceModel.initial(names()),
-        logs: [], gaps: [], capturedMs: 0, blockNo: 0, finalized: false, startedAt: null, interrupted: false, mode: 'validation' });
+        logs: [], gaps: [], capturedMs: 0, blockNo: 0, finalized: false, startedAt: null, interrupted: false, mode: 'live',
+        recordDate: calendarDate(), dayIndex: new Date().getDay() });
+    function syncHistory(remove = false) {
+        try { VoiceHistory.sync(localStorage, s, remove); s.historyError = ''; }
+        catch (e) { s.historyError = e.message; throw e; }
+    }
+    async function editRecord(operation, text) {
+        if (busy || auditBusy || stopping || editing) return;
+        editing = true; render();
+        try {
+            writes = writes.then(async () => {
+                s.state = AIVoiceModel.apply(s.state, { id: crypto.randomUUID(), at: Date.now(), text, operations: [operation] });
+                s.records = AIVoiceModel.legacy(s.state); await persist(); syncHistory(); await persist();
+            });
+            await writes; message('削除を保存しました。');
+        } catch(e) { writes = writes.catch(() => {}); message('端末の音声記録は保持しています。履歴への反映を再試行してください：'+e.message); }
+        finally { editing = false; render(); }
+    }
     function renderMenu() {
         try {
             const menu = JSON.parse(localStorage.getItem('gym_menu') || '{}');
             const records = JSON.parse(localStorage.getItem('gym_records') || '{}');
             const day = Number($('menuDay').value), date = new Date(s.createdAt);
-            const before = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+            const before = s.recordDate || calendarDate(date);
             const cards = (menu[day]?.exercises || []).map(e => {
                 const card = document.createElement('article'); card.className = 'exercise-card';
                 const title = document.createElement('h3'); title.textContent = e.name;
@@ -48,16 +67,24 @@
         $('names').textContent = s.state.names.join(' ／ ') || '登録種目がありません。先にメニューを登録してください。';
         const counts = {};
         $('sets').replaceChildren(...s.state.sets.map(set => {
-            const li = document.createElement('li'); counts[set.name] = (counts[set.name] || 0) + 1;
-            li.textContent = `${set.name} ${counts[set.name]}セット目：${set.weight === 0 ? '自重' : set.weight + 'kg'} × ${set.reps}回`; return li;
+            const li = document.createElement('li'); counts[set.name] = (counts[set.name] || 0) + 1; const setIndex = counts[set.name];
+            const label = document.createElement('span'); label.textContent = `${set.name} ${counts[set.name]}セット目：${set.weight === 0 ? '自重' : set.weight + 'kg'} × ${set.reps}回`;
+            const button = document.createElement('button'); button.textContent = '削除'; button.className = 'secondary'; button.disabled = busy || auditBusy || stopping || editing;
+            button.onclick = () => editRecord({ kind:'undo', name:set.name, targetId:set.id }, `${set.name}の${setIndex}セット目を画面で削除`);
+            li.replaceChildren(label, button); return li;
         }));
         $('pending').replaceChildren(...s.state.pending.map((p,i) => {
-            const li = document.createElement('li'); li.textContent = `確認待ち${i+1}：「${p.text}」 — ${p.reason}`; return li;
+            const li = document.createElement('li'), label = document.createElement('span'); label.textContent = `確認待ち${i+1}：「${p.text}」 — ${p.reason}`;
+            const button = document.createElement('button'); button.textContent = '記録に入れず削除'; button.className = 'secondary'; button.disabled = busy || auditBusy || stopping || editing;
+            button.onclick = () => editRecord({ kind:'resolve', targetId:p.id }, `確認待ち${i+1}を画面で無視`); li.replaceChildren(label, button); return li;
         }));
-        $('summary').textContent = `${s.state.sets.length}セットを端末に保存 · 通常の履歴には未反映`;
+        $('summary').textContent = `${s.state.sets.length}セット · ${s.mode !== 'live' ? '以前のテスト記録（通常履歴には未反映）' : s.historyError ? '履歴への保存失敗：'+s.historyError : '通常の履歴へ自動保存'}`;
+        $('deleteSession').disabled = recording || stopping || busy || auditBusy || editing;
+        $('confirmDeleteSession').disabled = recording || stopping || busy || auditBusy || editing;
+        $('menuDay').disabled = s.mode === 'live' && (recording || !!s.startedAt || s.state.sets.length > 0);
         $('queueStatus').textContent = `送信待ち：${jobs.filter(j => j.status !== 'done').length}件${busy ? ' · 解析中' : ''}`;
         $('phase').textContent = s.finalized ? '保存完了' : s.state.phase === 'review' ? '終了時の確認' : 'トレーニング記録';
-        $('enable').disabled = recording || stopping || s.finalized || !ready || !s.state.names.length;
+        $('enable').disabled = editing || s.deleting || recording || stopping || s.finalized || !ready || !s.state.names.length;
         $('stop').disabled = !recording; $('new').disabled = recording || stopping || busy || auditBusy;
         $('connect').disabled = recording; $('mic').disabled = recording;
         $('loadSession').disabled = recording || stopping || busy || auditBusy; $('sessions').disabled = recording || stopping || busy || auditBusy;
@@ -112,8 +139,9 @@
         await persist();
     }
     async function start() {
-        if (recording || !ready || !s.state.names.length) return;
+        if (s.deleting || recording || editing || !ready || !s.state.names.length) return;
         try {
+            if (!s.startedAt && s.mode === 'live') s.recordDate = calendarDate();
             ctx = new (window.AudioContext || window.webkitAudioContext)();
             await ctx.resume();
             const estimate = await navigator.storage?.estimate?.();
@@ -165,7 +193,7 @@
         $('captureStatus').textContent = '録音：停止'; message(reason); stopping = false; render();
     }
     async function pump() {
-        if (!db || !s || busy || stopping || auditBusy || !token || !navigator.onLine || Date.now() < retryAt || s.finalized) return;
+        if (!db || !s || s.deleting || editing || busy || stopping || auditBusy || !token || !navigator.onLine || Date.now() < retryAt || s.finalized) return;
         const job = jobs.find(j => j.status !== 'done');
         if (!job) { if (auditWanted) await audit(); return; }
         busy = true; render();
@@ -179,7 +207,7 @@
             writes = writes.then(async () => {
                 const next = { ...s, state: AIVoiceModel.apply(s.state, { ...packet, at: job.at, boundary: job.boundary }) };
                 const done = { ...job, status: 'done', text: packet.text, completedAt: Date.now() };
-                await db.complete(next, done); s = next; Object.assign(job, done);
+                await db.complete(next, done); s = next; Object.assign(job, done); syncHistory(); await persist();
             });
             await writes; $('heard').textContent = `聞き取り：${packet.text || '発話なし'}`;
             $('reply').textContent = packet.uncertain || job.boundary ? '終了時の確認に追加しました' : '記録を更新しました'; failures = 0;
@@ -212,15 +240,16 @@
         if (finalizeWanted && !s.state.pending.length && s.state.audit?.revision === s.state.revision) await finalize();
     }
     async function finalize() {
-        if (busy || auditBusy || stopping || s.finalized || jobs.some(j => j.status !== 'done') || s.state.pending.length) return;
+        if (editing || busy || auditBusy || stopping || s.finalized || jobs.some(j => j.status !== 'done') || s.state.pending.length) return;
         finalizeWanted = true;
         if (s.state.audit?.revision !== s.state.revision) { auditWanted = true; return; }
         await stop('最終区間を保存しています');
         if (jobs.some(j => j.status !== 'done')) { auditWanted = true; return; }
         try {
+            syncHistory();
             const next = { ...s, finalized: true, finalizedAt: Date.now(), records: AIVoiceModel.legacy(s.state) };
             await db.finalize(next); s = next; finalizeWanted = false;
-            message('検証記録を保存し、一時録音を削除しました。通常の履歴には未反映です。');
+            message(s.mode === 'live' ? '通常の履歴へ保存しました。一時録音を削除しました。' : '以前のテスト記録として保存しました。通常履歴には未反映です。');
         } catch (e) { message('最終保存に失敗しました。録音を保持します：' + e.message); }
         render();
     }
@@ -237,25 +266,40 @@
         } catch (e) { message('接続できません：' + e.message); }
     };
     $('enable').onclick = start; $('stop').onclick = () => stop('手動で中断しました', false);
-    $('retry').onclick = () => { retryAt = 0; void pump(); };
+    $('retry').onclick = async () => { try { if(!editing && !busy) { syncHistory(); await persist(); } retryAt = 0; void pump(); } catch(e) { message('履歴への保存に失敗：'+e.message); } render(); };
     $('auditBtn').onclick = () => { s.state.phase = 'review'; auditWanted = true; };
     $('finalize').onclick = finalize;
     $('new').onclick = async () => {
-        if (recording || busy || auditBusy || stopping) return;
+        if (recording || busy || auditBusy || stopping || editing) return;
         s = fresh(); jobs = []; blockNo = 0; activeStart = null; retryAt = 0; writes = Promise.resolve(); finalizeWanted = false; auditWanted = false;
-        await persist(); await sessionOptions(); render(); message('新しい試験を開始できます。以前の録音は保持しています。');
+        $('menuDay').value = String(s.dayIndex); $('deleteConfirm').hidden = true;
+        await persist(); await sessionOptions(); render(); message('通常の履歴に保存する新しい記録を開始できます。');
     };
     async function sessionOptions(){
         const sessions=(await db.all('sessions')).sort((a,b)=>b.createdAt-a.createdAt);
-        $('sessions').replaceChildren(...sessions.map(x=>new Option(`${new Date(x.createdAt).toLocaleString('ja-JP')} · ${x.finalized?'確定済み':'未確定'}`,x.id)));
+        $('sessions').replaceChildren(...sessions.map(x=>new Option(`${new Date(x.createdAt).toLocaleString('ja-JP')} · ${x.mode === 'live' ? '通常記録' : '旧テスト'} · ${x.finalized?'確定済み':'未確定'}`,x.id)));
         $('sessions').value=s.id;
     }
     $('loadSession').onclick=async()=>{
-        if(recording||busy||auditBusy||stopping)return;
+        if(recording||busy||auditBusy||stopping||editing)return;
         const selected=(await db.all('sessions')).find(x=>x.id===$('sessions').value);if(!selected)return;
         await writes;s=selected;jobs=(await db.bySession('jobs',s.id)).sort((a,b)=>a.start-b.start);blockNo=Math.max(s.blockNo||0,(await db.lastBlock(s.id))+1);
         activeStart=null;continuation=false;finalizeWanted=false;auditWanted=false;retryAt=0;
-        render();message('保存済みの検証記録を開きました。');
+        $('menuDay').value = String(s.dayIndex ?? new Date(s.createdAt).getDay()); $('deleteConfirm').hidden = true;
+        render();message('保存済みの音声記録を開きました。');
+    };
+    $('deleteSession').onclick = () => { $('deleteConfirm').hidden = false; };
+    $('cancelDeleteSession').onclick = () => { $('deleteConfirm').hidden = true; };
+    $('confirmDeleteSession').onclick = async () => {
+        if (recording || busy || auditBusy || stopping || editing) return;
+        editing = true; render();
+        try {
+            await writes; s.deleting = true; await persist(); syncHistory(true); await db.deleteSession(s.id);
+            s = fresh(); jobs = []; blockNo = 0; activeStart = null; continuation = false; auditWanted = false; finalizeWanted = false; retryAt = 0;
+            await persist(); await sessionOptions(); $('menuDay').value = String(s.dayIndex); $('deleteConfirm').hidden = true;
+            message('この音声記録と一時録音を削除しました。');
+        } catch(e) { message('削除を完了できませんでした。再試行してください：'+e.message); }
+        finally { editing = false; render(); }
     };
     $('export').onclick = () => download(new Blob([JSON.stringify({ ...s, jobs },null,2)], { type:'application/json' }), `gym-ai-${s.id}.json`);
     $('exportAudio').onclick = async () => {
@@ -265,7 +309,7 @@
     };
     $('menuDay').replaceChildren(...['日','月','火','水','木','金','土'].map((day,i) => new Option(day+'曜日',String(i))));
     $('menuDay').value = String(new Date().getDay());
-    $('menuDay').onchange = renderMenu;
+    $('menuDay').onchange = async () => { if(s.mode === 'live' && !s.startedAt && !s.state.sets.length) { s.dayIndex = Number($('menuDay').value); await persist(); } renderMenu(); };
     document.addEventListener('visibilitychange', () => {
         if (!recording) return;
         log(document.hidden ? 'page-hidden' : 'page-visible');
@@ -284,8 +328,13 @@
     },1000);
     (async () => {
         try {
-            db=await new VoiceDB().open(); const sessions=(await db.all('sessions')).sort((a,b)=>b.createdAt-a.createdAt);
-            s=sessions.find(x=>!x.finalized)||fresh(); jobs=(await db.bySession('jobs',s.id)).sort((a,b)=>a.start-b.start);
+            db=await new VoiceDB().open(); let sessions=(await db.all('sessions')).sort((a,b)=>b.createdAt-a.createdAt);
+            for (const deleted of sessions.filter(x=>x.deleting)) { VoiceHistory.sync(localStorage, deleted, true); await db.deleteSession(deleted.id); }
+            sessions = sessions.filter(x=>!x.deleting);
+            s=sessions.find(x=>!x.finalized && x.mode === 'live')||fresh(); jobs=(await db.bySession('jobs',s.id)).sort((a,b)=>a.start-b.start);
+            if (!s.startedAt && !s.state.sets.length) s.state.names = names();
+            $('menuDay').value = String(s.dayIndex);
+            try { syncHistory(); } catch(e) { message('履歴への反映を再試行してください：'+e.message); }
             blockNo=Math.max(s.blockNo||0,(await db.lastBlock(s.id))+1);
             if (s.startedAt) {
                 s.interrupted=true; log('page-reopened'); const last=jobs.reduce((max,j)=>Math.max(max,j.end),-1);

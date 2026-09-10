@@ -47,6 +47,15 @@
                 req.onsuccess=()=>{ const cursor=req.result; if(cursor){ tx.objectStore('blocks').delete(cursor.primaryKey); cursor.continue(); } };
             });
         }
+        deleteSession(id) {
+            return this.transaction(['sessions', 'blocks', 'jobs'], true, tx => {
+                tx.objectStore('sessions').delete(id);
+                for (const table of ['blocks', 'jobs']) {
+                    const store = tx.objectStore(table), req = store.index('session').openKeyCursor(id);
+                    req.onsuccess = () => { const cursor = req.result; if (cursor) { store.delete(cursor.primaryKey); cursor.continue(); } };
+                }
+            });
+        }
     }
     globalThis.VoiceDB = VoiceDB;
 })();
