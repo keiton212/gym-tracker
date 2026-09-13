@@ -1,36 +1,156 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#111827"><title>無音AI音声記録 — GymTracker</title><link rel="stylesheet" href="css/voice-test.css"></head>
-<body><main>
-<a href="index.html">← GymTracker</a><p class="eyebrow">GYMTRACKER / AI音声記録</p>
-<h1>話して記録。返答は静かに。</h1>
-<nav><a href="#recording">録音の開始・状態へ ↓</a></nav>
-<p>読み上げ・通知音はありません。この画面でメニューと前回の記録を見ながら話せます。確定したセットは通常の履歴へ自動保存します。</p>
-<section><h2>メニューと前回の記録</h2><label for="menuDay">メニュー・保存先の曜日</label><select id="menuDay"></select><p id="menuNote" class="note"></p><div id="menuCards"></div></section>
-<section id="setup"><h2>接続設定</h2>
-<p id="setupStatus" class="note">接続状態を確認しています。</p>
-<div id="setupManual">
-<label for="endpoint">音声サービスURL</label><input id="endpoint" type="url" placeholder="https://gym-tracker-voice.…workers.dev">
-<label for="password">このアプリ専用の接続パスワード</label><input id="password" type="password" autocomplete="current-password">
-<button id="connect">接続する</button>
-<p class="note">初回だけ接続すると、この端末では以降自動接続します。APIキーは入力しません。OpenAI/Groq方式は選んだ提供元へ音声・登録種目名・必要な記録を送ります。Codex方式はCloudflareで音声を最長15分一時中継し、PC内で文字起こし、文字と必要な記録だけをCodexへ送ります。音声は端末に一時保存し、最終確定後に削除します。</p>
-</div></section>
-<section><h2>使う方式</h2><div role="group" aria-label="音声処理方式"><button id="providerOpenai">OpenAI API</button><button id="providerCodex" class="secondary">Codex（PC）</button><button id="providerGroq" class="secondary">Groq API</button></div><p id="providerNote" role="status"></p><p class="note">開始前に選択します。切り替えるときは「新しいトレーニング」を押してください。未処理分を別の方式へ自動送信しません。</p></section>
-<section id="recording"><div class="heading"><h2 id="phase">録音の準備</h2><strong id="elapsed">00:00 / 80:00</strong></div>
-<progress id="progress" max="4800" value="0"></progress>
-<p id="status" role="status">接続設定を確認しています。</p><p id="captureStatus">録音：停止</p><p id="queueStatus">送信待ち：0</p><p id="wake">画面の点灯維持：未開始</p>
-<label for="mic">マイク（許可後に表示されます）</label><select id="mic"><option value="">iPhoneが選択したマイク</option></select>
-<button id="enable" disabled>マイクを有効にして開始</button><button id="stop" class="secondary" disabled>中断・録音を停止</button>
-<p id="heard"></p><p id="reply" aria-live="polite"></p>
-<button id="retry" class="secondary">未送信分・履歴保存を再試行</button><button id="new" class="secondary">新しいトレーニング</button>
-<label for="sessions">保存済みの音声記録・以前のテスト</label><select id="sessions"></select><button id="loadSession" class="secondary">選んだ記録を開く</button><button id="deleteSession" class="secondary">開いている音声記録を丸ごと削除</button><div id="deleteConfirm" hidden><p>この音声記録のセット・確認待ち・録音を削除します。通常記録の場合、この記録が追加したセットを履歴からも削除します。</p><button id="confirmDeleteSession">削除する</button><button id="cancelDeleteSession" class="secondary">やめる</button></div>
-</section>
-<section><h2>登録済みの種目</h2><p id="names"></p>
-<p>「ベンチプレス70キロ8回」→「6回」→「65キロで8回」<br>「20キロ10回を3セット」<br>「ディップス、自重で10回、8回、6回」</p>
-<p class="note">種目と重量は省略できます。種目を変えたら重量を指定。「10回を3セット」は完了した3セットです。</p></section>
-<section><h2>今回の記録</h2><p>各セットの「削除」で不要な入力を消せます。通常記録では履歴にも反映します。</p><ol id="sets"></ol><p id="summary"></p></section>
-<section><h2>終了時の確認</h2><p>「筋トレ終了」で全体を照合します。確認中も声で訂正できます。</p><ol id="pending"></ol><p id="audit"></p>
-<p>「ベンチプレスの2セット目を7回に訂正」<br>「確認待ち1は無視して」<br>確認できたら「確認して保存」</p>
-<button id="auditBtn" class="secondary">全体を照合する</button><button id="finalize" class="secondary">確認して保存</button>
-<p id="result">録音中断：0件</p><button id="export" class="secondary">記録・診断を書き出す</button><button id="exportAudio" class="secondary">一時録音を書き出す</button></section>
-<details><summary>バックグラウンド・音楽・通信について</summary><p>画面を切り替えてもアプリからは録音を停止しません。ただしiPhone側が処理を止める場合があり、ロック中の継続は未保証です。中断を検知したら停止表示になり、再開が必要です。明日の利用はこの画面を前面に保つ方法を推奨します。</p><p>Spotifyなどの音楽はマイク開始時にiPhone側で止まることがあります。Web版では同時再生を保証できません。音楽を再開した場合も、録音時間と入力レベルが進むことを確認してください。スピーカーの音楽が入ると誤認識の原因になるため、音楽はイヤホンを推奨します。</p><p>通信断は未送信分を残して再送します。録音自体が止まった区間は復元できません。約80分で約154MBの空き容量を使います。Aquaへの送信は行いません。</p></details>
-</main><script src="js/ai-voice-config.js"></script><script src="js/ai-voice-model.js"></script><script src="js/ai-voice-db.js"></script><script src="js/ai-voice-audio.js"></script><script src="js/ai-voice-menu.js"></script><script src="js/ai-voice-history.js"></script><script src="js/ai-voice.js"></script></body></html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#071018">
+<title>声で記録 — GymTracker</title>
+<link rel="stylesheet" href="css/voice-test.css">
+</head>
+<body data-mode="connecting">
+<a class="skip" href="#recording">録音操作へ</a>
+<main>
+  <header class="topbar">
+    <a class="back" href="index.html">← ホーム</a>
+    <p class="brand">GymTracker</p>
+    <h1>声で記録</h1>
+    <p class="lead">種目・キロ・回数を話すだけ。音は出ません。</p>
+  </header>
+
+  <ol class="steps" aria-label="使い方の流れ">
+    <li id="stepConnect" class="steps__item">接続</li>
+    <li id="stepReady" class="steps__item">開始</li>
+    <li id="stepLive" class="steps__item">話す</li>
+    <li id="stepDone" class="steps__item">保存</li>
+  </ol>
+
+  <section class="hero" id="recording">
+    <div class="hero__head">
+      <p class="hero__label" id="phase">準備中</p>
+      <p class="hero__time" id="elapsed">00:00 <span>/ 80:00</span></p>
+    </div>
+    <progress id="progress" max="4800" value="0" aria-label="録音時間"></progress>
+    <p class="hero__status" id="status" role="status">接続を確認しています…</p>
+    <p class="hero__hint" id="nextHint">しばらくお待ちください</p>
+    <div class="livebox" aria-live="polite">
+      <p id="heard" class="livebox__heard">聞き取り：まだありません</p>
+      <p id="reply" class="livebox__reply">ここに結果が出ます</p>
+    </div>
+    <div class="hero__meta">
+      <span id="captureStatus">マイク停止</span>
+      <span id="queueStatus">送信待ち 0</span>
+      <span id="wake">画面点灯：—</span>
+    </div>
+    <label class="field" for="mic">マイク</label>
+    <select id="mic"><option value="">iPhoneが選んだマイク</option></select>
+    <div class="actions">
+      <button id="enable" class="btn btn--primary" disabled>録音を開始</button>
+      <button id="stop" class="btn btn--danger" disabled>録音を止める</button>
+    </div>
+  </section>
+
+  <section class="panel panel--sets">
+    <div class="panel__head">
+      <h2>今回のセット</h2>
+      <p id="summary" class="panel__summary">0セット</p>
+    </div>
+    <p id="emptySets" class="empty">まだありません。録音開始後に話してください。</p>
+    <ol id="sets" class="set-list"></ol>
+  </section>
+
+  <section class="panel">
+    <h2>こう話す</h2>
+    <ul class="examples">
+      <li><strong>ベンチプレス70キロ8回</strong><span>1セット追加</span></li>
+      <li><strong>6回</strong><span>同じ種目・重量の次セット</span></li>
+      <li><strong>65キロで8回</strong><span>これから重量を変更</span></li>
+      <li><strong>20キロ10回を3セット</strong><span>まとめて3セット</span></li>
+      <li><strong>ディップス自重で10回8回6回</strong><span>回数違いの連続</span></li>
+      <li><strong>筋トレ終了</strong><span>照合して終わりへ</span></li>
+    </ul>
+    <p class="note">「記録」と言う必要はありません。種目を変えたら重量も言ってください。</p>
+    <p class="names-line">登録種目：<span id="names">読み込み中…</span></p>
+  </section>
+
+  <section class="panel panel--review">
+    <h2>終わったら</h2>
+    <p class="note">「筋トレ終了」と言うか、下のボタンで照合します。確認待ちがあれば声か画面で直せます。</p>
+    <ol id="pending" class="pending-list"></ol>
+    <p id="audit" class="audit">照合はまだです</p>
+    <div class="actions">
+      <button id="auditBtn" class="btn btn--secondary">全体を照合</button>
+      <button id="finalize" class="btn btn--primary">確認して保存</button>
+    </div>
+    <p id="result" class="note">録音中断：0件</p>
+  </section>
+
+  <details class="drawer">
+    <summary>メニュー・前回の記録を見る</summary>
+    <label class="field" for="menuDay">曜日（保存先）</label>
+    <select id="menuDay"></select>
+    <p id="menuNote" class="note"></p>
+    <div id="menuCards" class="menu-cards"></div>
+  </details>
+
+  <details class="drawer" id="setup">
+    <summary>接続・認識方式</summary>
+    <p id="setupStatus" class="note">接続状態を確認しています。</p>
+    <div id="setupManual">
+      <label class="field" for="endpoint">サービスURL</label>
+      <input id="endpoint" type="url" placeholder="https://gym-tracker-voice.…workers.dev" autocomplete="off">
+      <label class="field" for="password">接続パスワード（初回だけ）</label>
+      <input id="password" type="password" autocomplete="current-password">
+      <button id="connect" class="btn btn--primary">接続する</button>
+      <p class="note">一度つなぐと、この端末では自動接続します。APIキーの入力は不要です。</p>
+    </div>
+    <p class="field">認識の方式（開始前に選択）</p>
+    <div class="provider-row" role="group" aria-label="音声処理方式">
+      <button id="providerOpenai" type="button" class="btn btn--chip">OpenAI</button>
+      <button id="providerCodex" type="button" class="btn btn--chip">Codex PC</button>
+      <button id="providerGroq" type="button" class="btn btn--chip">Groq</button>
+    </div>
+    <p id="providerNote" class="note" role="status"></p>
+  </details>
+
+  <details class="drawer">
+    <summary>記録の管理・トラブル時</summary>
+    <div class="actions actions--wrap">
+      <button id="retry" class="btn btn--secondary">未送信・履歴を再試行</button>
+      <button id="new" class="btn btn--secondary">新しいトレーニング</button>
+    </div>
+    <label class="field" for="sessions">保存済みの音声記録</label>
+    <select id="sessions"></select>
+    <div class="actions actions--wrap">
+      <button id="loadSession" class="btn btn--secondary">開く</button>
+      <button id="deleteSession" class="btn btn--secondary">この記録を削除</button>
+    </div>
+    <div id="deleteConfirm" class="confirm" hidden>
+      <p>この音声記録のセット・確認待ち・録音を消します。通常履歴に入れたセットも消えます。</p>
+      <div class="actions">
+        <button id="confirmDeleteSession" class="btn btn--danger">削除する</button>
+        <button id="cancelDeleteSession" class="btn btn--secondary">やめる</button>
+      </div>
+    </div>
+    <p class="note">下の書き出しは診断用です。普段の記録保存には使いません。iPhoneでは保存できないことがあります。</p>
+    <div class="actions actions--wrap">
+      <button id="export" class="btn btn--ghost">診断JSON（開発用）</button>
+      <button id="exportAudio" class="btn btn--ghost">一時録音WAV（開発用）</button>
+    </div>
+  </details>
+
+  <details class="drawer">
+    <summary>注意（画面・音楽・通信）</summary>
+    <p>画面を前面・点灯のままにしてください。ロック中の継続は保証しません。</p>
+    <p>Spotifyなどと同時再生は不安定です。音楽はイヤホン推奨です。</p>
+    <p>通信が切れても未送信分は端末に残し、復帰後に送り直します。</p>
+  </details>
+</main>
+<script src="js/ai-voice-config.js"></script>
+<script src="js/ai-voice-model.js"></script>
+<script src="js/ai-voice-db.js"></script>
+<script src="js/ai-voice-audio.js"></script>
+<script src="js/ai-voice-menu.js"></script>
+<script src="js/ai-voice-history.js"></script>
+<script src="js/ai-voice.js"></script>
+</body>
+</html>

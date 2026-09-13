@@ -4,7 +4,7 @@ const settle=async()=>{for(let i=0;i<15;i++)await new Promise(setImmediate);};
 function runtime(){
  const elements=new Map(),tables={sessions:new Map(),blocks:new Map(),jobs:new Map()},intervals=[],nodes=[],packets=[],listeners={};
  const stored=new Map([['gym_menu',JSON.stringify({0:{exercises:[{name:'ベンチプレス'}]}})],['gym_records','{}'],['gym_ai_voice_token','test-token']]);
- const element=id=>{if(!elements.has(id))elements.set(id,{value:'',textContent:'',disabled:false,replaceChildren(...c){this.children=c;}});return elements.get(id);};
+ const element=id=>{if(!elements.has(id)){const el={value:'',textContent:'',disabled:false,hidden:false,open:false,className:'',classList:{_s:new Set(),toggle(name,on){if(on)this._s.add(name);else this._s.delete(name);el.className=[...this._s].join(' ');},contains(name){return this._s.has(name);}},replaceChildren(...c){this.children=c;}};elements.set(id,el);}return elements.get(id);};
  class DB{async open(){return this;}async put(t,v){tables[t].set(v.id,structuredClone(v));}async all(t){return [...tables[t].values()].map(v=>structuredClone(v));}async bySession(t,id){return (await this.all(t)).filter(v=>v.session===id);}async blocks(id,start,end){return (await this.bySession('blocks',id)).filter(v=>v.number>=start&&v.number<=end).sort((a,b)=>a.number-b.number);}async lastBlock(id){return (await this.bySession('blocks',id)).reduce((n,b)=>Math.max(n,b.number),-1);}async complete(s,j){await this.put('sessions',s);await this.put('jobs',j);}async deleteSession(id){tables.sessions.delete(id);for(const name of ['blocks','jobs'])for(const [key,value]of tables[name])if(value.session===id)tables[name].delete(key);}async finalize(s){await this.put('sessions',s);for(const [id,b]of tables.blocks)if(b.session===s.id)tables.blocks.delete(id);}}
  const noop=()=>{};const link=()=>({connect:noop,disconnect:noop});
  class Context{constructor(){this.state='running';this.sampleRate=16000;this.audioWorklet={addModule:async()=>{}};this.destination={};}async resume(){}async close(){this.state='closed';this.onstatechange?.();}createMediaStreamSource(){return link();}createGain(){return {...link(),gain:{value:1}};}}
@@ -14,7 +14,7 @@ function runtime(){
  AIVoiceModel:M,VoiceAudio:A,VoiceMenu:require('../js/ai-voice-menu.js'),VoiceHistory:require('../js/ai-voice-history.js'),VoiceDB:DB,GYM_VOICE_ENDPOINT:'https://test',AudioContext:Context,AudioWorkletNode:Node,
  localStorage:{getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v)},
  navigator:{onLine:true,storage:{estimate:async()=>({quota:1e9,usage:0})},mediaDevices:{getUserMedia:async()=>({getAudioTracks:()=>[{label:'test mic',addEventListener:noop}],getTracks:()=>[{stop:noop}]}),enumerateDevices:async()=>[]}},
- document:{getElementById:element,createElement:()=>({click:noop,replaceChildren(...children){this.children=children;}}),addEventListener:(name,fn)=>listeners[name]=fn,hidden:false},addEventListener:noop,
+ document:{getElementById:element,createElement:()=>({click:noop,replaceChildren(...children){this.children=children;}}),addEventListener:(name,fn)=>listeners[name]=fn,hidden:false,body:{dataset:{}}},addEventListener:noop,
  setTimeout,clearTimeout,setInterval:fn=>intervals.push(fn),
  fetch:async(url,options={})=>{calls.push(url);if(url.endsWith('/health'))return Response.json({ready:true,providers:{openai:true,codex:true,groq:false}});if(url.endsWith('/session'))return Response.json({authenticated:true});
  if(url.endsWith('/analyze')){if(c.offline)throw Error('offline');const meta=JSON.parse(options.body.get('metadata'));const next=packets.shift();assert.ok(next,'expected packet');return Response.json({id:meta.id,...next});}
@@ -119,7 +119,7 @@ test('expired token auto-reconnects with saved password and hides setup',async()
  await r.init();
  assert.equal(r.element('enable').disabled,false);
  assert.equal(r.element('setupManual').hidden,true);
- assert.match(r.element('setupStatus').textContent,/自動接続/);
+ assert.match(r.element('setupStatus').textContent,/自動|接続/);
  assert.equal(r.stored.get('gym_ai_voice_token'),'fresh-token');
  assert.ok(r.calls.some(u=>u.endsWith('/login')));
 });

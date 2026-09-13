@@ -14,15 +14,39 @@
     let token = localStorage.getItem('gym_ai_voice_token') || '';
     const PASS_KEY = 'gym_ai_voice_password';
     const message = text => { $('status').textContent = text; };
+    function setHint(text) {
+        const hint = $('nextHint');
+        if (hint) hint.textContent = text;
+    }
+    function setMode(mode) {
+        document.body.dataset.mode = mode;
+        const map = {
+            connecting: ['stepConnect'],
+            ready: ['stepConnect', 'stepReady'],
+            recording: ['stepConnect', 'stepReady', 'stepLive'],
+            review: ['stepConnect', 'stepReady', 'stepLive', 'stepDone'],
+            done: ['stepConnect', 'stepReady', 'stepLive', 'stepDone']
+        };
+        const active = mode === 'done' ? null : ({
+            connecting: 'stepConnect', ready: 'stepReady', recording: 'stepLive', review: 'stepDone'
+        })[mode];
+        for (const id of ['stepConnect', 'stepReady', 'stepLive', 'stepDone']) {
+            const el = $(id); if (!el) continue;
+            el.classList.toggle('is-done', (map[mode] || []).includes(id) && id !== active);
+            el.classList.toggle('is-active', id === active || (mode === 'done' && id === 'stepDone'));
+        }
+    }
     function updateSetupUI() {
         const saved = !!localStorage.getItem(PASS_KEY);
         const manual = $('setupManual');
         if (manual) manual.hidden = ready;
         const note = $('setupStatus');
         if (!note) return;
-        if (ready) note.textContent = 'この端末では自動接続済みです。毎回のパスワード入力は不要です。';
-        else if (saved) note.textContent = '自動接続に失敗しました。サービスURLと接続パスワードを確認して再接続してください。';
-        else note.textContent = '初回だけ接続パスワードを入力すると、この端末では以降自動で接続します。';
+        if (ready) note.textContent = '接続済み。この端末では次回から自動でつながります。';
+        else if (saved) note.textContent = '自動接続に失敗しました。下のパスワードで再接続してください。';
+        else note.textContent = '初回だけ接続パスワードを入れてください。';
+        const setup = $('setup');
+        if (setup && setup.tagName === 'DETAILS') setup.open = !ready;
     }
     const persist = () => db.put('sessions', s);
     const log = (type, detail = '') => { s.logs.push({ at: Date.now(), type, detail }); if (s.logs.length > 6000) s.logs.shift(); };
@@ -79,39 +103,57 @@
         if (!s) return;
         renderMenu();
         const provider = s.provider || 'openai';
+        const short = {openai:'OpenAI',codex:'Codex PC',groq:'Groq'};
         for (const [key,id] of Object.entries({openai:'providerOpenai',codex:'providerCodex',groq:'providerGroq'})) {
-            $(id).disabled = recording || busy || auditBusy || stopping || editing || !!s.startedAt || !providers[key];
-            $(id).textContent = (provider === key ? '選択中：' : '') + providerLabels[key] + (!providers[key] ? '（設定待ち）' : '');
+            const btn = $(id);
+            btn.disabled = recording || busy || auditBusy || stopping || editing || !!s.startedAt || !providers[key];
+            btn.textContent = (provider === key ? '✓ ' : '') + short[key] + (!providers[key] ? '（未設定）' : '');
+            btn.classList.toggle('is-selected', provider === key);
         }
-        $('providerNote').textContent = provider === 'codex' ? 'Codex方式：PCの起動・中継プログラムが必要です。PCで音声認識し、ChatGPTの契約枠で整理します。PC停止時は未処理分が端末に残ります。' : provider === 'groq' ? 'Groq方式：Whisper large-v3-turboで認識、GPT-OSSで整理します。GroqのAPI利用枠を使います。' : 'OpenAI方式：従来どおりgpt-4o-transcribeで認識、gpt-4.1-miniで整理します。API従量課金です。';
-        $('names').textContent = s.state.names.join(' ／ ') || '登録種目がありません。先にメニューを登録してください。';
+        $('providerNote').textContent = provider === 'codex' ? 'PCの中継プログラムが必要です。' : provider === 'groq' ? 'Groqの枠を使います（比較用）。' : '標準のOpenAI方式です。';
+        $('names').textContent = s.state.names.join(' ／ ') || 'なし（ホームでメニュー登録が必要）';
         const counts = {};
-        $('sets').replaceChildren(...s.state.sets.map(set => {
+        const setNodes = s.state.sets.map(set => {
             const li = document.createElement('li'); counts[set.name] = (counts[set.name] || 0) + 1; const setIndex = counts[set.name];
-            const label = document.createElement('span'); label.textContent = `${set.name} ${counts[set.name]}セット目：${set.weight === 0 ? '自重' : set.weight + 'kg'} × ${set.reps}回`;
-            const button = document.createElement('button'); button.textContent = '削除'; button.className = 'secondary'; button.disabled = busy || auditBusy || stopping || editing;
+            const label = document.createElement('span'); label.textContent = `${set.name} ${counts[set.name]}セット目　${set.weight === 0 ? '自重' : set.weight + 'kg'} × ${set.reps}回`;
+            const button = document.createElement('button'); button.textContent = '削除'; button.className = 'btn btn--secondary'; button.disabled = busy || auditBusy || stopping || editing;
             button.onclick = () => editRecord({ kind:'undo', name:set.name, targetId:set.id }, `${set.name}の${setIndex}セット目を画面で削除`);
             li.replaceChildren(label, button); return li;
-        }));
+        });
+        $('sets').replaceChildren(...setNodes);
+        const empty = $('emptySets');
+        if (empty) empty.hidden = setNodes.length > 0;
         $('pending').replaceChildren(...s.state.pending.map((p,i) => {
             const li = document.createElement('li'), label = document.createElement('span'); label.textContent = `確認待ち${i+1}：「${p.text}」 — ${p.reason}`;
-            const button = document.createElement('button'); button.textContent = '記録に入れず削除'; button.className = 'secondary'; button.disabled = busy || auditBusy || stopping || editing;
+            const button = document.createElement('button'); button.textContent = '無視'; button.className = 'btn btn--secondary'; button.disabled = busy || auditBusy || stopping || editing;
             button.onclick = () => editRecord({ kind:'resolve', targetId:p.id }, `確認待ち${i+1}を画面で無視`); li.replaceChildren(label, button); return li;
         }));
-        $('summary').textContent = `${s.state.sets.length}セット · ${s.mode !== 'live' ? '以前のテスト記録（通常履歴には未反映）' : s.historyError ? '履歴への保存失敗：'+s.historyError : '通常の履歴へ自動保存'}`;
+        $('summary').textContent = s.mode !== 'live' ? `${s.state.sets.length}セット · 旧テスト` : s.historyError ? `${s.state.sets.length}セット · 履歴保存失敗` : `${s.state.sets.length}セット · 履歴へ自動保存`;
         $('deleteSession').disabled = recording || stopping || busy || auditBusy || editing;
         $('confirmDeleteSession').disabled = recording || stopping || busy || auditBusy || editing;
         $('menuDay').disabled = s.mode === 'live' && (recording || !!s.startedAt || s.state.sets.length > 0);
-        $('queueStatus').textContent = `送信待ち：${jobs.filter(j => j.status !== 'done').length}件${busy ? ' · 解析中' : ''}`;
-        $('phase').textContent = s.finalized ? '保存完了' : s.state.phase === 'review' ? '終了時の確認' : 'トレーニング記録';
+        const pendingJobs = jobs.filter(j => j.status !== 'done').length;
+        $('queueStatus').textContent = busy ? `解析中… 残り${pendingJobs}` : `送信待ち ${pendingJobs}`;
+        let mode = 'connecting';
+        if (s.finalized) mode = 'done';
+        else if (s.state.phase === 'review') mode = 'review';
+        else if (recording) mode = 'recording';
+        else if (ready) mode = 'ready';
+        setMode(mode);
+        $('phase').textContent = mode === 'done' ? '保存完了' : mode === 'review' ? '終了確認' : mode === 'recording' ? '録音中' : mode === 'ready' ? '開始できます' : '接続中';
+        if (mode === 'done') setHint('ホームの「過去データ」で履歴を確認できます');
+        else if (mode === 'review') setHint(s.state.pending.length ? '確認待ちを直すか、「無視」してから保存' : '問題なければ「確認して保存」');
+        else if (mode === 'recording') setHint(busy ? 'いま解析しています。話し続けてOK' : '種目・キロ・回数を話してください');
+        else if (mode === 'ready') setHint(s.state.names.length ? '下の「録音を開始」を押してください' : '先にホームでメニューを登録してください');
+        else setHint(localStorage.getItem(PASS_KEY) ? '接続をやり直しています…' : '「接続・認識方式」を開いてパスワード入力');
         $('enable').disabled = editing || s.deleting || recording || stopping || s.finalized || !ready || !s.state.names.length;
         $('stop').disabled = !recording; $('new').disabled = recording || stopping || busy || auditBusy;
         $('connect').disabled = recording; $('mic').disabled = recording;
         $('loadSession').disabled = recording || stopping || busy || auditBusy; $('sessions').disabled = recording || stopping || busy || auditBusy;
         $('finalize').disabled = busy || auditBusy || stopping || s.finalized || s.state.pending.length > 0 || jobs.some(j => j.status !== 'done');
         $('auditBtn').disabled = busy || auditBusy || s.finalized || jobs.some(j => j.status !== 'done');
-        $('audit').textContent = auditBusy ? '発話と記録を照合しています…' : s.state.audit?.summary || '全体照合はまだ完了していません。';
-        $('result').textContent = `録音中断：${s.gaps.length}件${s.interrupted ? ' · 中断した区間の記録を確認してください' : ''}`;
+        $('audit').textContent = auditBusy ? '照合中…' : s.state.audit?.summary || '照合はまだです。「筋トレ終了」か「全体を照合」';
+        $('result').textContent = `録音中断：${s.gaps.length}件${s.interrupted ? ' · 中断あり。内容を確認してください' : ''}`;
         updateSetupUI();
     }
     async function login(password) {
@@ -176,8 +218,8 @@
                 }
             }
             ready = r.ok && h.ready && authenticated;
-            message(!h.ready ? '音声サービスの秘密設定待ちです。' : authenticated ? '開始できます。音は出ません。' : localStorage.getItem(PASS_KEY) ? '自動接続に失敗しました。接続設定を確認してください。' : '初回だけ専用パスワードで接続してください。');
-        } catch { ready = false; message('音声サービスに接続できません。保存済みの記録は残っています。'); }
+            message(!h.ready ? '音声サービスがまだ準備できていません。' : authenticated ? '準備OK。録音を開始できます。' : localStorage.getItem(PASS_KEY) ? '自動接続に失敗しました。' : '初回だけ接続パスワードが必要です。');
+        } catch { ready = false; message('音声サービスに接続できません。'); }
         render();
     }
     async function acquireWake() {
@@ -199,7 +241,7 @@
         await db.put('blocks', { id: `${s.id}:${number}`, session: s.id, number, pcm, at: Date.now() });
         s.capturedMs += pcm.length / 16; s.blockNo = blockNo;
         const { peak: rms, speech } = VoiceAudio.level(pcm);
-        if (recording) $('captureStatus').textContent = `録音中 · ${stream?.getAudioTracks()[0]?.label || 'マイク'} · 入力レベル ${Math.round(rms * 1000)}`;
+        if (recording) $('captureStatus').textContent = `録音中 · 入力 ${Math.round(rms * 1000)}`;
         if (speech) { if (activeStart === null) activeStart = Math.max(jobs.at(-1)?.end + 1 || 0, number - 1); silence = 0; }
         else if (activeStart !== null) silence++;
         if (activeStart !== null && silence >= 3) { await makeJob(number); continuation = false; }
@@ -241,10 +283,10 @@
             const devices = await navigator.mediaDevices.enumerateDevices(), selected = $('mic').value;
             $('mic').replaceChildren(new Option('iPhoneが選択したマイク', ''), ...devices.filter(d => d.kind === 'audioinput').map(d => new Option(d.label || 'マイク', d.deviceId))); $('mic').value = selected;
             log('capture-start', { microphone: stream.getAudioTracks()[0]?.label, rate: ctx.sampleRate });
-            await persist(); await acquireWake(); render(); message('録音中です。種目・重量・回数を話してください。');
+            await persist(); await acquireWake(); render(); message('録音中。種目・キロ・回数を話してください。');
         } catch (e) { await stop(e.message || 'マイクを開始できませんでした', true); }
     }
-    async function stop(reason = '録音を停止しました', gap = false) {
+    async function stop(reason = '録音を止めました', gap = false) {
         if (stopping) return;
         stopping = true; const wasRecording = recording; recording = false;
         if (gap) { s.interrupted = true; s.gaps.push({ at: Date.now(), reason }); }
@@ -258,7 +300,7 @@
         await writes.catch(() => {});
         if (activeStart !== null) await makeJob(blockNo - 1, gap).catch(() => {});
         log('capture-stop', reason); await persist().catch(() => {});
-        $('captureStatus').textContent = '録音：停止'; message(reason); stopping = false; render();
+        $('captureStatus').textContent = 'マイク停止'; message(reason); stopping = false; render();
     }
     async function pump() {
         if (!db || !s || s.deleting || editing || busy || stopping || auditBusy || !token || !navigator.onLine || Date.now() < retryAt || s.finalized) return;
@@ -278,7 +320,7 @@
                 await db.complete(next, done); s = next; Object.assign(job, done); syncHistory(); await persist();
             });
             await writes; $('heard').textContent = `聞き取り：${packet.text || '発話なし'}`;
-            $('reply').textContent = packet.uncertain || job.boundary ? '終了時の確認に追加しました' : '記録を更新しました'; failures = 0;
+            $('reply').textContent = packet.uncertain || job.boundary ? '確認待ちに入れました' : 'セットを更新しました'; failures = 0;
             if (s.state.phase === 'review' || s.state.finalizeRequested) auditWanted = true;
             if (s.state.finalizeRequested) { finalizeWanted = true; s.state.finalizeRequested = false; }
         } catch (e) {
@@ -323,8 +365,8 @@
             syncHistory();
             const next = { ...s, finalized: true, finalizedAt: Date.now(), records: AIVoiceModel.legacy(s.state) };
             await db.finalize(next); s = next; finalizeWanted = false;
-            message(s.mode === 'live' ? '通常の履歴へ保存しました。一時録音を削除しました。' : '以前のテスト記録として保存しました。通常履歴には未反映です。');
-        } catch (e) { message('最終保存に失敗しました。録音を保持します：' + e.message); }
+            message(s.mode === 'live' ? '保存完了。履歴に入りました。' : '旧テストとして保存しました。');
+        } catch (e) { message('最終保存に失敗しました：' + e.message); }
         render();
     }
     function download(blob, name) { const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url),10000); }
@@ -337,9 +379,9 @@
     for (const [provider,id] of Object.entries({openai:'providerOpenai',codex:'providerCodex',groq:'providerGroq'})) $(id).onclick = async () => {
         if (recording || busy || auditBusy || stopping || editing || s.startedAt || !providers[provider]) return;
         s.provider = preferredProvider = provider; localStorage.setItem('gym_voice_provider', provider); await persist(); render();
-        message(providerLabels[provider]+'を選びました。');
+        message(providerLabels[provider]+'に切り替えました。');
     };
-    $('enable').onclick = start; $('stop').onclick = () => stop('手動で中断しました', false);
+    $('enable').onclick = start; $('stop').onclick = () => stop('手動で録音を止めました', false);
     $('retry').onclick = async () => { try { if(!editing && !busy) { syncHistory(); await persist(); } retryAt = 0; void pump(); } catch(e) { message('履歴への保存に失敗：'+e.message); } render(); };
     $('auditBtn').onclick = () => { s.state.phase = 'review'; auditWanted = true; };
     $('finalize').onclick = finalize;
@@ -347,7 +389,7 @@
         if (recording || busy || auditBusy || stopping || editing) return;
         s = fresh(); jobs = []; blockNo = 0; activeStart = null; retryAt = 0; writes = Promise.resolve(); finalizeWanted = false; auditWanted = false;
         $('menuDay').value = String(s.dayIndex); $('deleteConfirm').hidden = true;
-        await persist(); await sessionOptions(); render(); message('通常の履歴に保存する新しい記録を開始できます。');
+        await persist(); await sessionOptions(); render(); message('新しいトレーニングの準備ができました。');
     };
     async function sessionOptions(){
         const sessions=(await db.all('sessions')).sort((a,b)=>b.createdAt-a.createdAt);
