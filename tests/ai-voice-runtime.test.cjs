@@ -100,3 +100,26 @@ test('provider selection is persisted and locked after recording starts',async()
  await r.element('stop').onclick();await r.element('new').onclick();assert.equal(r.state().provider,'codex');
  await r.element('providerOpenai').onclick();assert.equal(r.state().provider,'openai');
 });
+test('expired token auto-reconnects with saved password and hides setup',async()=>{
+ const r=runtime();
+ r.stored.set('gym_ai_voice_password','saved-pass');
+ r.stored.set('gym_ai_voice_token','stale');
+ let authenticated=false;
+ r.c.fetch=async(url,options={})=>{
+  r.calls.push(url);
+  if(url.endsWith('/health'))return Response.json({ready:true,providers:{openai:true,codex:true,groq:true}});
+  if(url.endsWith('/session'))return Response.json({authenticated});
+  if(url.endsWith('/login')){
+   assert.equal(JSON.parse(options.body).password,'saved-pass');
+   authenticated=true;
+   return Response.json({token:'fresh-token',expiresAt:Date.now()+3600000});
+  }
+  throw Error('Unexpected '+url);
+ };
+ await r.init();
+ assert.equal(r.element('enable').disabled,false);
+ assert.equal(r.element('setupManual').hidden,true);
+ assert.match(r.element('setupStatus').textContent,/自動接続/);
+ assert.equal(r.stored.get('gym_ai_voice_token'),'fresh-token');
+ assert.ok(r.calls.some(u=>u.endsWith('/login')));
+});

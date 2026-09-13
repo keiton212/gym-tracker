@@ -6,10 +6,14 @@
 <nav><a href="#recording">録音の開始・状態へ ↓</a></nav>
 <p>読み上げ・通知音はありません。この画面でメニューと前回の記録を見ながら話せます。確定したセットは通常の履歴へ自動保存します。</p>
 <section><h2>メニューと前回の記録</h2><label for="menuDay">メニュー・保存先の曜日</label><select id="menuDay"></select><p id="menuNote" class="note"></p><div id="menuCards"></div></section>
-<section id="setup"><h2>初回の接続設定</h2>
+<section id="setup"><h2>接続設定</h2>
+<p id="setupStatus" class="note">接続状態を確認しています。</p>
+<div id="setupManual">
 <label for="endpoint">音声サービスURL</label><input id="endpoint" type="url" placeholder="https://gym-tracker-voice.…workers.dev">
 <label for="password">このアプリ専用の接続パスワード</label><input id="password" type="password" autocomplete="current-password">
-<button id="connect">接続する</button><p class="note">APIキーは入力しません。OpenAI/Groq方式は選んだ提供元へ音声・登録種目名・必要な記録を送ります。Codex方式はCloudflareで音声を最長15分一時中継し、PC内で文字起こし、文字と必要な記録だけをCodexへ送ります。音声は端末に一時保存し、最終確定後に削除します。</p></section>
+<button id="connect">接続する</button>
+<p class="note">初回だけ接続すると、この端末では以降自動接続します。APIキーは入力しません。OpenAI/Groq方式は選んだ提供元へ音声・登録種目名・必要な記録を送ります。Codex方式はCloudflareで音声を最長15分一時中継し、PC内で文字起こし、文字と必要な記録だけをCodexへ送ります。音声は端末に一時保存し、最終確定後に削除します。</p>
+</div></section>
 <section><h2>使う方式</h2><div role="group" aria-label="音声処理方式"><button id="providerOpenai">OpenAI API</button><button id="providerCodex" class="secondary">Codex（PC）</button><button id="providerGroq" class="secondary">Groq API</button></div><p id="providerNote" role="status"></p><p class="note">開始前に選択します。切り替えるときは「新しいトレーニング」を押してください。未処理分を別の方式へ自動送信しません。</p></section>
 <section id="recording"><div class="heading"><h2 id="phase">録音の準備</h2><strong id="elapsed">00:00 / 80:00</strong></div>
 <progress id="progress" max="4800" value="0"></progress>

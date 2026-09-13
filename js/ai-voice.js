@@ -12,7 +12,18 @@
     const providerLabels = {openai:'OpenAI API',codex:'Codex（PC）',groq:'Groq API'};
     let endpoint = localStorage.getItem('gym_ai_voice_endpoint') || GYM_VOICE_ENDPOINT;
     let token = localStorage.getItem('gym_ai_voice_token') || '';
+    const PASS_KEY = 'gym_ai_voice_password';
     const message = text => { $('status').textContent = text; };
+    function updateSetupUI() {
+        const saved = !!localStorage.getItem(PASS_KEY);
+        const manual = $('setupManual');
+        if (manual) manual.hidden = ready;
+        const note = $('setupStatus');
+        if (!note) return;
+        if (ready) note.textContent = 'この端末では自動接続済みです。毎回のパスワード入力は不要です。';
+        else if (saved) note.textContent = '自動接続に失敗しました。サービスURLと接続パスワードを確認して再接続してください。';
+        else note.textContent = '初回だけ接続パスワードを入力すると、この端末では以降自動で接続します。';
+    }
     const persist = () => db.put('sessions', s);
     const log = (type, detail = '') => { s.logs.push({ at: Date.now(), type, detail }); if (s.logs.length > 6000) s.logs.shift(); };
     const calendarDate = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
@@ -101,6 +112,25 @@
         $('auditBtn').disabled = busy || auditBusy || s.finalized || jobs.some(j => j.status !== 'done');
         $('audit').textContent = auditBusy ? '発話と記録を照合しています…' : s.state.audit?.summary || '全体照合はまだ完了していません。';
         $('result').textContent = `録音中断：${s.gaps.length}件${s.interrupted ? ' · 中断した区間の記録を確認してください' : ''}`;
+        updateSetupUI();
+    }
+    async function login(password) {
+        if (typeof password !== 'string' || !password) throw Error('接続パスワードを入力してください');
+        const value = new URL(($('endpoint').value || endpoint || '').trim());
+        if (value.protocol !== 'https:' || value.username || value.password || value.search || value.hash || value.pathname !== '/') {
+            throw Error('HTTPSのサービスURLを指定してください');
+        }
+        endpoint = value.origin;
+        const r = await fetch(endpoint + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password }), signal: AbortSignal.timeout(15000) });
+        const result = await r.json(); if (!r.ok) throw Error(result.error || 'unauthorized');
+        token = result.token;
+        localStorage.setItem('gym_ai_voice_endpoint', endpoint);
+        localStorage.setItem('gym_ai_voice_token', token);
+        localStorage.setItem(PASS_KEY, password);
+        if ($('password')) $('password').value = '';
+        retryAt = 0;
+        return true;
     }
     async function api(path, body) {
         const response = await fetch(endpoint + path, { method: 'POST', headers: { Authorization: `Bearer ${token}`,
@@ -122,15 +152,31 @@
         }
         return result;
     }
+    async function sessionOk() {
+        if (!token) return false;
+        const check = await fetch(endpoint + '/session', { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000) });
+        return check.ok && (await check.json()).authenticated;
+    }
     async function health() {
-        if (!endpoint) { message('初回接続を設定してください。'); return; }
+        if (!endpoint) { message('初回接続を設定してください。'); updateSetupUI(); return; }
         try {
             const r = await fetch(endpoint + '/health', { signal: AbortSignal.timeout(10000) }); const h = await r.json();
-            let authenticated=false;
-            if(token && h.ready){ const check=await fetch(endpoint+'/session',{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)}); authenticated=check.ok && (await check.json()).authenticated; }
             providers = h.providers || {openai:true,codex:false,groq:false};
+            let authenticated = false;
+            if (r.ok && h.ready) {
+                authenticated = await sessionOk();
+                if (!authenticated) {
+                    const saved = localStorage.getItem(PASS_KEY);
+                    if (saved) {
+                        try {
+                            await login(saved);
+                            authenticated = await sessionOk();
+                        } catch { authenticated = false; }
+                    }
+                }
+            }
             ready = r.ok && h.ready && authenticated;
-            message(!h.ready ? '音声サービスの秘密設定待ちです。' : authenticated ? '開始できます。音は出ません。' : '専用パスワードで接続してください。');
+            message(!h.ready ? '音声サービスの秘密設定待ちです。' : authenticated ? '開始できます。音は出ません。' : localStorage.getItem(PASS_KEY) ? '自動接続に失敗しました。接続設定を確認してください。' : '初回だけ専用パスワードで接続してください。');
         } catch { ready = false; message('音声サービスに接続できません。保存済みの記録は残っています。'); }
         render();
     }
@@ -239,7 +285,13 @@
             // Restore a usable write chain after a failed atomic commit.
             writes = writes.catch(() => {});
             failures++; retryAt = Date.now() + Math.min(60000, 2000 * 2 ** Math.min(failures,5));
-            if ([401,403,400,413,503].includes(e.status)) { retryAt = Infinity; ready = false; }
+            if (e.status === 401) {
+                const saved = localStorage.getItem(PASS_KEY);
+                if (saved) {
+                    try { await login(saved); ready = true; retryAt = 0; failures = 0; }
+                    catch { retryAt = Infinity; ready = false; }
+                } else { retryAt = Infinity; ready = false; }
+            } else if ([403,400,413,503].includes(e.status)) { retryAt = Infinity; ready = false; }
             message(`未処理分を端末に保持しています：${e.message}`); log('processing-error', e.message);
         } finally { busy = false; render(); }
     }
@@ -278,14 +330,9 @@
     function download(blob, name) { const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url),10000); }
     $('connect').onclick = async () => {
         try {
-            const value = new URL($('endpoint').value.trim());
-            if (value.protocol !== 'https:' || value.username || value.password || value.search || value.hash || value.pathname !== '/') throw Error('HTTPSのサービスURLを指定してください');
-            endpoint = value.origin;
-            const r = await fetch(endpoint + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('password').value }), signal: AbortSignal.timeout(15000) });
-            const result = await r.json(); if (!r.ok) throw Error(result.error);
-            token = result.token; localStorage.setItem('gym_ai_voice_endpoint', endpoint); localStorage.setItem('gym_ai_voice_token', token); $('password').value = '';
-            retryAt = 0; await health();
-        } catch (e) { message('接続できません：' + e.message); }
+            await login($('password').value);
+            await health();
+        } catch (e) { ready = false; message('接続できません：' + e.message); updateSetupUI(); }
     };
     for (const [provider,id] of Object.entries({openai:'providerOpenai',codex:'providerCodex',groq:'providerGroq'})) $(id).onclick = async () => {
         if (recording || busy || auditBusy || stopping || editing || s.startedAt || !providers[provider]) return;
