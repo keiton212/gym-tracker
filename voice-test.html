@@ -3,18 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#071018">
 <title>声で記録 — GymTracker</title>
 <link rel="stylesheet" href="css/voice-test.css">
 </head>
 <body data-mode="connecting">
-<a class="skip" href="#recording">録音操作へ</a>
+<a class="skip" href="#dock">操作ボタンへ</a>
 <main>
   <header class="topbar">
     <a class="back" href="index.html">← ホーム</a>
-    <p class="brand">GymTracker</p>
-    <h1>声で記録</h1>
-    <p class="lead">種目・キロ・回数を話すだけ。音は出ません。</p>
+    <div class="topbar__title">
+      <p class="brand">GymTracker</p>
+      <h1>声で記録</h1>
+    </div>
   </header>
 
   <ol class="steps" aria-label="使い方の流れ">
@@ -24,28 +26,20 @@
     <li id="stepDone" class="steps__item">保存</li>
   </ol>
 
-  <section class="hero" id="recording">
-    <div class="hero__head">
-      <p class="hero__label" id="phase">準備中</p>
-      <p class="hero__time" id="elapsed">00:00 <span>/ 80:00</span></p>
+  <section class="status-card" id="recording">
+    <div class="status-card__row">
+      <div>
+        <p class="rec-dot" aria-hidden="true"></p>
+        <p class="status-card__phase" id="phase">準備中</p>
+      </div>
+      <p class="status-card__time" id="elapsed">00:00 / 80:00</p>
     </div>
     <progress id="progress" max="4800" value="0" aria-label="録音時間"></progress>
-    <p class="hero__status" id="status" role="status">接続を確認しています…</p>
-    <p class="hero__hint" id="nextHint">しばらくお待ちください</p>
+    <p class="status-card__status" id="status" role="status">接続を確認しています…</p>
+    <p class="status-card__hint" id="nextHint">しばらくお待ちください</p>
     <div class="livebox" aria-live="polite">
       <p id="heard" class="livebox__heard">聞き取り：まだありません</p>
-      <p id="reply" class="livebox__reply">ここに結果が出ます</p>
-    </div>
-    <div class="hero__meta">
-      <span id="captureStatus">マイク停止</span>
-      <span id="queueStatus">送信待ち 0</span>
-      <span id="wake">画面点灯：—</span>
-    </div>
-    <label class="field" for="mic">マイク</label>
-    <select id="mic"><option value="">iPhoneが選んだマイク</option></select>
-    <div class="actions">
-      <button id="enable" class="btn btn--primary" disabled>録音を開始</button>
-      <button id="stop" class="btn btn--danger" disabled>録音を止める</button>
+      <p id="reply" class="livebox__reply">結果はここに出ます</p>
     </div>
   </section>
 
@@ -54,38 +48,35 @@
       <h2>今回のセット</h2>
       <p id="summary" class="panel__summary">0セット</p>
     </div>
-    <p id="emptySets" class="empty">まだありません。録音開始後に話してください。</p>
+    <p id="emptySets" class="empty">録音を始めて、種目・キロ・回数を話してください</p>
     <ol id="sets" class="set-list"></ol>
-  </section>
-
-  <section class="panel">
-    <h2>こう話す</h2>
-    <ul class="examples">
-      <li><strong>ベンチプレス70キロ8回</strong><span>1セット追加</span></li>
-      <li><strong>6回</strong><span>同じ種目・重量の次セット</span></li>
-      <li><strong>65キロで8回</strong><span>これから重量を変更</span></li>
-      <li><strong>20キロ10回を3セット</strong><span>まとめて3セット</span></li>
-      <li><strong>ディップス自重で10回8回6回</strong><span>回数違いの連続</span></li>
-      <li><strong>筋トレ終了</strong><span>照合して終わりへ</span></li>
-    </ul>
-    <p class="note">「記録」と言う必要はありません。種目を変えたら重量も言ってください。</p>
-    <p class="names-line">登録種目：<span id="names">読み込み中…</span></p>
   </section>
 
   <section class="panel panel--review">
     <h2>終わったら</h2>
-    <p class="note">「筋トレ終了」と言うか、下のボタンで照合します。確認待ちがあれば声か画面で直せます。</p>
+    <p class="note compact">「筋トレ終了」と言うか、照合して保存します。</p>
     <ol id="pending" class="pending-list"></ol>
     <p id="audit" class="audit">照合はまだです</p>
-    <div class="actions">
-      <button id="auditBtn" class="btn btn--secondary">全体を照合</button>
-      <button id="finalize" class="btn btn--primary">確認して保存</button>
-    </div>
-    <p id="result" class="note">録音中断：0件</p>
+    <button id="auditBtn" class="btn btn--secondary btn--block">全体を照合</button>
+    <p id="result" class="note compact">録音中断：0件</p>
   </section>
 
   <details class="drawer">
-    <summary>メニュー・前回の記録を見る</summary>
+    <summary>言い方の例・登録種目</summary>
+    <ul class="examples">
+      <li><strong>ベンチプレス70キロ8回</strong><span>1セット</span></li>
+      <li><strong>6回</strong><span>次セット</span></li>
+      <li><strong>65キロで8回</strong><span>重量変更</span></li>
+      <li><strong>20キロ10回を3セット</strong><span>まとめ</span></li>
+      <li><strong>ディップス自重で10回8回6回</strong><span>連続</span></li>
+      <li><strong>筋トレ終了</strong><span>終わり</span></li>
+    </ul>
+    <p class="note">「記録」は不要。種目を変えたら重量も言う。</p>
+    <p class="names-line">登録種目：<span id="names">読み込み中…</span></p>
+  </details>
+
+  <details class="drawer">
+    <summary>メニュー・前回の記録</summary>
     <label class="field" for="menuDay">曜日（保存先）</label>
     <select id="menuDay"></select>
     <p id="menuNote" class="note"></p>
@@ -100,10 +91,10 @@
       <input id="endpoint" type="url" placeholder="https://gym-tracker-voice.…workers.dev" autocomplete="off">
       <label class="field" for="password">接続パスワード（初回だけ）</label>
       <input id="password" type="password" autocomplete="current-password">
-      <button id="connect" class="btn btn--primary">接続する</button>
-      <p class="note">一度つなぐと、この端末では自動接続します。APIキーの入力は不要です。</p>
+      <button id="connect" class="btn btn--primary btn--block">接続する</button>
+      <p class="note">一度つなぐと、この端末では自動接続します。</p>
     </div>
-    <p class="field">認識の方式（開始前に選択）</p>
+    <p class="field">認識の方式（開始前）</p>
     <div class="provider-row" role="group" aria-label="音声処理方式">
       <button id="providerOpenai" type="button" class="btn btn--chip">OpenAI</button>
       <button id="providerCodex" type="button" class="btn btn--chip">Codex PC</button>
@@ -113,38 +104,47 @@
   </details>
 
   <details class="drawer">
-    <summary>記録の管理・トラブル時</summary>
-    <div class="actions actions--wrap">
-      <button id="retry" class="btn btn--secondary">未送信・履歴を再試行</button>
-      <button id="new" class="btn btn--secondary">新しいトレーニング</button>
+    <summary>マイク・詳細・管理</summary>
+    <label class="field" for="mic">マイク</label>
+    <select id="mic"><option value="">iPhoneが選んだマイク</option></select>
+    <div class="meta-row">
+      <span id="captureStatus">マイク停止</span>
+      <span id="queueStatus">送信待ち 0</span>
+      <span id="wake">画面点灯：—</span>
+    </div>
+    <div class="stack">
+      <button id="retry" class="btn btn--secondary btn--block">未送信・履歴を再試行</button>
+      <button id="new" class="btn btn--secondary btn--block">新しいトレーニング</button>
     </div>
     <label class="field" for="sessions">保存済みの音声記録</label>
     <select id="sessions"></select>
-    <div class="actions actions--wrap">
+    <div class="stack stack--2">
       <button id="loadSession" class="btn btn--secondary">開く</button>
-      <button id="deleteSession" class="btn btn--secondary">この記録を削除</button>
+      <button id="deleteSession" class="btn btn--secondary">削除</button>
     </div>
     <div id="deleteConfirm" class="confirm" hidden>
-      <p>この音声記録のセット・確認待ち・録音を消します。通常履歴に入れたセットも消えます。</p>
-      <div class="actions">
+      <p>この音声記録のセット・確認待ち・録音を消します。通常履歴の分も消えます。</p>
+      <div class="stack stack--2">
         <button id="confirmDeleteSession" class="btn btn--danger">削除する</button>
         <button id="cancelDeleteSession" class="btn btn--secondary">やめる</button>
       </div>
     </div>
-    <p class="note">下の書き出しは診断用です。普段の記録保存には使いません。iPhoneでは保存できないことがあります。</p>
-    <div class="actions actions--wrap">
-      <button id="export" class="btn btn--ghost">診断JSON（開発用）</button>
-      <button id="exportAudio" class="btn btn--ghost">一時録音WAV（開発用）</button>
+    <p class="note">診断の書き出しは普段不要です。iPhoneでは保存できないことがあります。</p>
+    <div class="stack stack--2">
+      <button id="export" class="btn btn--ghost">診断JSON</button>
+      <button id="exportAudio" class="btn btn--ghost">一時録音</button>
     </div>
   </details>
-
-  <details class="drawer">
-    <summary>注意（画面・音楽・通信）</summary>
-    <p>画面を前面・点灯のままにしてください。ロック中の継続は保証しません。</p>
-    <p>Spotifyなどと同時再生は不安定です。音楽はイヤホン推奨です。</p>
-    <p>通信が切れても未送信分は端末に残し、復帰後に送り直します。</p>
-  </details>
 </main>
+
+<nav class="dock" id="dock" aria-label="メイン操作">
+  <button id="enable" class="btn btn--primary btn--dock dock-only-ready" disabled>録音を開始</button>
+  <button id="stop" class="btn btn--danger btn--dock dock-only-live" disabled>録音を止める</button>
+  <button id="finalize" class="btn btn--primary btn--dock dock-only-review" disabled>確認して保存</button>
+  <p class="dock__tip dock-only-connecting">上の「接続・認識方式」で接続してください</p>
+  <p class="dock__tip dock-only-done">保存済み。ホームの過去データで確認できます</p>
+</nav>
+
 <script src="js/ai-voice-config.js"></script>
 <script src="js/ai-voice-model.js"></script>
 <script src="js/ai-voice-db.js"></script>

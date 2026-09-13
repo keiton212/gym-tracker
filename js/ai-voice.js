@@ -141,11 +141,11 @@
         else if (ready) mode = 'ready';
         setMode(mode);
         $('phase').textContent = mode === 'done' ? '保存完了' : mode === 'review' ? '終了確認' : mode === 'recording' ? '録音中' : mode === 'ready' ? '開始できます' : '接続中';
-        if (mode === 'done') setHint('ホームの「過去データ」で履歴を確認できます');
-        else if (mode === 'review') setHint(s.state.pending.length ? '確認待ちを直すか、「無視」してから保存' : '問題なければ「確認して保存」');
-        else if (mode === 'recording') setHint(busy ? 'いま解析しています。話し続けてOK' : '種目・キロ・回数を話してください');
-        else if (mode === 'ready') setHint(s.state.names.length ? '下の「録音を開始」を押してください' : '先にホームでメニューを登録してください');
-        else setHint(localStorage.getItem(PASS_KEY) ? '接続をやり直しています…' : '「接続・認識方式」を開いてパスワード入力');
+        if (mode === 'done') setHint('ホームの「過去データ」で確認できます');
+        else if (mode === 'review') setHint(s.state.pending.length ? '確認待ちを直してから、下の保存を押す' : 'よければ下の「確認して保存」');
+        else if (mode === 'recording') setHint(busy ? '解析中。話し続けてOK' : '種目・キロ・回数を話してください');
+        else if (mode === 'ready') setHint(s.state.names.length ? '下の「録音を開始」を押す' : '先にホームでメニュー登録');
+        else setHint(localStorage.getItem(PASS_KEY) ? '接続をやり直しています…' : '「接続・認識方式」を開いて接続');
         $('enable').disabled = editing || s.deleting || recording || stopping || s.finalized || !ready || !s.state.names.length;
         $('stop').disabled = !recording; $('new').disabled = recording || stopping || busy || auditBusy;
         $('connect').disabled = recording; $('mic').disabled = recording;
