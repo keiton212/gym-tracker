@@ -96,6 +96,16 @@
                 <p id="voiceQueue" class="voice-queue">送信待ち 0</p>
             </div>
             <ul id="voiceLiveSets" class="voice-live-sets"></ul>
+            <div class="voice-discard-row">
+                <button type="button" id="voiceDiscard" class="btn-secondary voice-discard-btn" disabled>録音を削除してやり直す</button>
+            </div>
+            <div id="voiceDiscardConfirm" class="voice-discard-confirm" hidden>
+                <p>この録音・セット・確認待ちを消します。入力フォームへの反映も取り消します。</p>
+                <div class="voice-confirm-actions">
+                    <button type="button" id="voiceConfirmDiscard" class="voice-btn-danger">削除する</button>
+                    <button type="button" id="voiceDiscardCancel" class="btn-secondary">やめる</button>
+                </div>
+            </div>
             <div id="voiceConfirmBox" class="voice-confirm-box" hidden>
                 <p id="voiceConfirmSummary"></p>
                 <p class="voice-confirm-ask">これで合っていますか？</p>

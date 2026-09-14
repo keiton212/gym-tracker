@@ -372,8 +372,25 @@ class GymApp {
             return;
         }
         void VoiceWorkout.init({
-            onSetsChanged: (sets) => this.applyVoiceSetsToForms(sets)
+            onSetsChanged: (sets) => this.applyVoiceSetsToForms(sets),
+            onSessionDiscarded: (names) => this.clearVoiceDraft(names)
         });
+    }
+
+    clearVoiceDraft(names = []) {
+        if (!names.length) return;
+        const draft = storage.getDraft(this.currentDayIndex) || {};
+        let changed = false;
+        for (const name of names) {
+            if (Object.hasOwn(draft, name)) {
+                delete draft[name];
+                changed = true;
+            }
+        }
+        if (!changed) return;
+        storage.saveDraft(this.currentDayIndex, draft);
+        this.renderExerciseList(this.currentDayIndex);
+        this.autoSaveRecord();
     }
 
     applyVoiceSetsToForms(sets = []) {

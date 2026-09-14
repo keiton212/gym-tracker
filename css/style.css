@@ -1513,6 +1513,25 @@ button, input {
     grid-template-columns: 1fr 1fr;
     gap: 8px;
 }
+.voice-discard-row { margin: 0 0 12px; }
+.voice-discard-btn { width: 100%; }
+.voice-discard-confirm {
+    margin: 0 0 12px;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(248, 113, 113, .1);
+    border: 1px solid rgba(248, 113, 113, .45);
+}
+.voice-discard-confirm p { margin: 0 0 10px; font-size: .92rem; line-height: 1.45; }
+.voice-btn-danger {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-weight: 800;
+    background: #5a2230;
+    color: #ffd5db;
+    border: 1px solid #8a3d4d;
+}
 .voice-dock-spacer {
     height: calc(132px + env(safe-area-inset-bottom, 0px));
 }

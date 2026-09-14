@@ -41,9 +41,12 @@
         failures: 0,
         pumpTimer: null,
         onSetsChanged: null,
+        onSessionDiscarded: null,
+        discarding: false,
 
-        async init({ onSetsChanged } = {}) {
+        async init({ onSetsChanged, onSessionDiscarded } = {}) {
             this.onSetsChanged = onSetsChanged || null;
+            this.onSessionDiscarded = onSessionDiscarded || null;
             this.endpoint = localStorage.getItem('gym_ai_voice_endpoint') || globalThis.GYM_VOICE_ENDPOINT;
             this.token = localStorage.getItem('gym_ai_voice_token') || '';
             this.bindUi();
@@ -82,6 +85,9 @@
             }
             $('voiceApproveNovel')?.addEventListener('click', () => this.approveAllNovel());
             $('voiceRejectNovel')?.addEventListener('click', () => this.rejectAllNovel());
+            $('voiceDiscard')?.addEventListener('click', () => this.showDiscardConfirm());
+            $('voiceDiscardCancel')?.addEventListener('click', () => this.hideDiscardConfirm());
+            $('voiceConfirmDiscard')?.addEventListener('click', () => this.discardSession());
             window.addEventListener('online', () => { this.retryAt = 0; void this.pump(); });
         },
 
@@ -278,6 +284,75 @@
             this.onSetsChanged?.(this.session?.state?.sets || [], this.session);
         },
 
+        hasDiscardableData() {
+            const s = this.session;
+            if (!s || s.finalized) return false;
+            return !!(s.startedAt || s.capturedMs || s.state.sets.length
+                || s.state.novelNames?.length || s.state.pending?.length || this.jobs.length);
+        },
+
+        showDiscardConfirm() {
+            if (this.recording || this.busy || this.stopping || this.discarding || !this.hasDiscardableData()) return;
+            const box = $('voiceDiscardConfirm');
+            if (box) {
+                box.hidden = false;
+                box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        },
+
+        hideDiscardConfirm() {
+            const box = $('voiceDiscardConfirm');
+            if (box) box.hidden = true;
+        },
+
+        clearLiveUi() {
+            for (const id of ['voiceHeard', 'voiceReply']) {
+                const el = $(id);
+                if (!el) continue;
+                delete el.dataset.last;
+                el.textContent = id === 'voiceHeard' ? '聞き取り：まだありません' : '結果はここに出ます';
+            }
+            const box = $('voiceConfirmBox');
+            if (box) box.hidden = true;
+        },
+
+        async discardSession() {
+            if (this.busy || this.stopping || this.discarding || !this.hasDiscardableData()) return;
+            this.discarding = true;
+            this.render();
+            try {
+                if (this.recording) await this.stop('', false);
+                await this.writes;
+                const dayIndex = this.session.dayIndex;
+                const recordDate = this.session.recordDate;
+                const namesToClear = [...new Set(this.session.state.sets.map(s => s.name))];
+                const oldId = this.session.id;
+                this.session.deleting = true;
+                await this.persist();
+                this.syncHistory(true);
+                await this.db.deleteSession(oldId);
+                this.session = this.fresh(dayIndex, recordDate);
+                this.session.state.names = this.menuNames(dayIndex);
+                this.jobs = [];
+                this.blockNo = 0;
+                this.activeStart = null;
+                this.continuation = false;
+                this.retryAt = 0;
+                this.failures = 0;
+                this.clearLiveUi();
+                await this.persist();
+                this.onSessionDiscarded?.(namesToClear);
+                this.emitSets();
+                this.hideDiscardConfirm();
+                this.setStatus('録音とセットを削除しました。最初からやり直せます');
+            } catch (e) {
+                this.setStatus('削除に失敗：' + e.message);
+            } finally {
+                this.discarding = false;
+                this.render();
+            }
+        },
+
         render() {
             if (!this.session) return;
             const s = this.session;
@@ -292,6 +367,13 @@
                 $('voiceSave').disabled = this.busy || recording || this.stopping || s.finalized
                     || novel.length > 0 || pending.length > 0
                     || this.jobs.some(j => j.status !== 'done');
+            }
+            if ($('voiceDiscard')) {
+                $('voiceDiscard').disabled = recording || this.busy || this.stopping || this.discarding
+                    || s.finalized || !this.hasDiscardableData();
+            }
+            if ($('voiceConfirmDiscard')) {
+                $('voiceConfirmDiscard').disabled = recording || this.busy || this.stopping || this.discarding;
             }
             for (const [key, id] of Object.entries({ openai: 'voiceProviderOpenai', codex: 'voiceProviderCodex', groq: 'voiceProviderGroq' })) {
                 const btn = $(id); if (!btn) continue;
