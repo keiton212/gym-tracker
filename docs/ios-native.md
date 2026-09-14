@@ -1,52 +1,72 @@
-# GymTracker iOS ネイティブアプリ（Capacitor）
+# GymTracker iOS アプリ（Windows 開発向け）
 
-Safari/PWA ではバックグラウンド録音と Spotify 同時再生が iOS に止められます。このアプリは Capacitor + `AVAudioSession` + ネイティブ PCM キャプチャでそれを回避します。
+Safari/PWA ではバックグラウンド録音と Spotify 同時再生が iOS に止められます。  
+このリポジトリの Capacitor アプリは `AVAudioSession` + ネイティブ PCM でそれを回避します。
 
-## 必要なもの
+**Mac は不要です。** コードは Windows、ビルドは GitHub Actions（macOS ランナー）です。
 
-- macOS + Xcode 15+
-- Apple ID（個人の実機インストール／TestFlight）
-- このリポジトリを Mac に clone
-- Node.js 18+
+## いま入っているもの
 
-## セットアップ
+- `ios/` Capacitor シェル
+- `GymAudioSession`（mixWithOthers / Bluetooth / バックグラウンド audio / AVAudioEngine PCM）
+- アプリ内だけネイティブ録音（`GymNativeAudio.available()`）
+- Worker は `capacitor://localhost` を許可済み
 
-```bash
+## Windows での進め方
+
+### 1. いつもの開発（この PC）
+
+```bat
 npm install
-npm run cap:sync
-npm run cap:open
+npm run www
+npm test
 ```
 
-Xcode で:
+静的 Web / PWA の確認は従来どおり GitHub Pages。
 
-1. Signing & Capabilities で自分の Team を選択
-2. Bundle ID `com.keiton212.gymtracker`（必要なら変更）
-3. 実機を接続して Run
+### 2. iOS コンパイル確認（Mac なし）
 
-CocoaPods 未導入の場合（初回）:
+GitHub に push するか、Actions で **iOS Build** を `workflow_dispatch` 実行。  
+`Compile (iOS Simulator)` が緑なら、Swift / Capacitor プロジェクトはビルド可能な状態です。
 
-```bash
-sudo gem install cocoapods
-cd ios/App && pod install && cd ../..
-npm run cap:sync
-```
+### 3. 実機インストール（iPhone）
 
-## 実機検証チェックリスト
+実機用 IPA の署名には **Apple Developer（有料 Team）の証明書**が必要です。  
+Windows からは次のどちらかです。
 
-録音開始後に次を確認する。
+**A. Sideloadly（手軽・7日ごと再署名が多い）**
 
-1. アプリ前面 + Spotify 再生中も「録音中（アプリ・音楽同時OK）」のまま続き、発話がセットに入る
-2. ホーム画面に送って 1〜2 分後も録音が止まらず、戻ってから発話が反映される
-3. 画面ロック中に話した内容が、解除後のセット一覧に出る
-4. DJI Mic Mini を「マイク一覧を更新」で選べる
-5. OpenAI / Groq の解析と履歴反映が従来どおり動く
+1. [Sideloadly](https://sideloadly.io/) を Windows に入れる
+2. Apple ID でログイン
+3. 署名済み IPA を iPhone にインストール
+4. 設定 → 一般 → VPNとデバイス管理 で開発元を信頼
 
-失敗時の手がかり:
+※ 署名済み IPA は、有料 Apple Developer で作った証明書を GitHub Secrets に入れたあと、別途「Device IPA」ジョブを足すか、一度だけ借り物 Mac / クラウド Mac で Archive する必要があります。無料 Apple ID だけでは Background Modes 付きの安定配布が難しい場合があります。
 
-- ステータスがすぐ「マイク入力が中断」→ まだ Web キャプチャ経路の可能性。アプリ版表示か確認
-- Worker が origin エラー → `capacitor://localhost` が Worker で許可されているか（本番 Worker を再デプロイ）
+**B. 有料 Apple Developer + 証明書を Secrets に登録（推奨・安定）**
+
+GitHub リポジトリ Secrets 例:
+
+- `APPLE_TEAM_ID`
+- `APPLE_CERTIFICATE_BASE64`（.p12）
+- `APPLE_CERTIFICATE_PASSWORD`
+- `APPLE_PROVISIONING_PROFILE_BASE64`
+
+用意できたら言ってください。Device IPA 用 workflow を有効化して、Artifacts から IPA を落とせるようにします。
+
+### 4. 実機検証チェックリスト
+
+アプリ版で録音開始後:
+
+1. Spotify 再生中も「録音中（アプリ・音楽同時OK）」のまま続き、発話がセットに入る
+2. ホームに送って 1〜2 分後も止まらず、戻ってから発話が反映される
+3. 画面ロック中の発話が解除後にセットへ出る
+4. DJI Mic Mini を選べる
+5. OpenAI / Groq と履歴反映が従来どおり
 
 ## Web との関係
 
-- GitHub Pages の PWA はそのまま使える（制限あり）
-- ネイティブ機能は Capacitor アプリ内だけ有効（`GymNativeAudio.available()`）
+| 実行環境 | 裏録音 / Spotify 同時 |
+|---|---|
+| Safari / GitHub Pages PWA | 不可（iOS 制限） |
+| Capacitor iOS アプリ | 対応（このプロジェクト） |

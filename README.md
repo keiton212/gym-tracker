@@ -100,7 +100,7 @@ iPhoneで簡単にジムでのトレーニング記録を管理するアプリ�
 
 画面が非表示になっただけでは録音を止めません。ただし **Safari / GitHub Pages の PWA** では、AudioContext停止・マイク中断・音声ブロックの空白を検知したら中断として残します。Web版には `AVAudioSession.mixWithOthers` がないため、画面ロック中の継続や Spotify 同時再生は未保証です。無音音声での延命は追加しません。
 
-**iOS ネイティブアプリ（Capacitor）** では、`AVAudioSession`（playAndRecord + mixWithOthers）とネイティブ PCM キャプチャで、Spotify 同時再生・バックグラウンド／画面オフ録音を目指します。ビルド手順は [`docs/ios-native.md`](docs/ios-native.md) を参照してください。
+**iOS ネイティブアプリ（Capacitor）** では、`AVAudioSession`（playAndRecord + mixWithOthers）とネイティブ PCM キャプチャで、Spotify 同時再生・バックグラウンド／画面オフ録音を目指します。**Mac がなくても** Windows から GitHub Actions でビルドできます。手順は [`docs/ios-native.md`](docs/ios-native.md) を参照してください。
 
 短い小声を1秒平均で見落とさないよう20ms単位で入力を判定します。数字の文字起こしlogprobが-1.5未満の場合は確認待ちにします。このしきい値は保守的なヒューリスティックであり、認識精度の保証や校正済み確率ではありません。
 

@@ -1,0 +1,61 @@
+name: iOS Build
+
+# Windows 開発向け: Mac なしで GitHub の macOS ランナーが iOS をコンパイルする。
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'ios/**'
+      - 'js/**'
+      - 'index.html'
+      - 'css/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.json'
+      - 'scripts/**'
+      - '.github/workflows/ios-build.yml'
+  workflow_dispatch:
+
+jobs:
+  compile-simulator:
+    name: Compile (iOS Simulator)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install JS deps and sync Capacitor www
+        run: |
+          npm ci
+          npm run www
+          npx cap sync ios
+
+      - name: Install CocoaPods deps
+        run: |
+          cd ios/App
+          pod install
+
+      - name: Xcode build (iphonesimulator)
+        run: |
+          set -euo pipefail
+          cd ios/App
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Upload simulator app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GymTracker-simulator-app
+          path: ios/App/build/DerivedData/Build/Products/Debug-iphonesimulator/App.app
+          if-no-files-found: warn
