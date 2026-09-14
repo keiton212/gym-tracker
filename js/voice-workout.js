@@ -87,9 +87,11 @@
 
         menuNames(dayIndex = new Date().getDay()) {
             const menu = JSON.parse(localStorage.getItem('gym_menu') || '{}');
-            return [...new Set([dayIndex, ...[0, 1, 2, 3, 4, 5, 6].filter(i => i !== dayIndex)].flatMap(day =>
+            const order = [dayIndex, ...[0, 1, 2, 3, 4, 5, 6].filter(i => i !== dayIndex)];
+            const names = order.flatMap(day =>
                 (menu[day]?.exercises || []).flatMap(e => [e.name, ...(Array.isArray(e.alternatives) ? e.alternatives : [])])
-                    .filter(n => typeof n === 'string' && n.trim()))];
+            ).filter(n => typeof n === 'string' && n.trim());
+            return [...new Set(names)];
         },
 
         fresh(dayIndex, recordDate) {
@@ -167,7 +169,11 @@
         },
 
         async autoConnect() {
+            const note = $('voiceConnectNote');
+            if (note) note.textContent = '接続確認中…';
+            this.setStatus('音声サービスに接続しています…');
             try {
+                if (!this.endpoint) throw Error('接続先が未設定です');
                 const health = await fetch(this.endpoint + '/health', { signal: AbortSignal.timeout(10000) });
                 const h = await health.json();
                 this.providers = h.providers || { openai: true, codex: false, groq: false };
@@ -192,11 +198,11 @@
                 }
                 this.ready = health.ok && h.ready && ok;
                 this.setStatus(this.ready ? '音声準備OK' : '音声サービスに接続できません');
-                const note = $('voiceConnectNote');
                 if (note) note.textContent = this.ready ? '自動接続済み' : '再接続を試してください';
-            } catch {
+            } catch (e) {
                 this.ready = false;
-                this.setStatus('音声サービスに接続できません');
+                this.setStatus('音声サービスに接続できません' + (e?.message ? `（${e.message}）` : ''));
+                if (note) note.textContent = '接続に失敗しました。再接続を試してください';
             }
             this.render();
         },
