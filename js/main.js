@@ -182,6 +182,10 @@ class GymApp {
 
     setupEventListeners() {
         document.getElementById('startBtn')?.addEventListener('click', () => this.startTraining());
+        document.getElementById('startVoiceLink')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.startTraining({ focusVoice: true });
+        });
         document.getElementById('menuEditBtn')?.addEventListener('click', () => this.showMenuScreen());
         document.getElementById('historyBtn')?.addEventListener('click', () => this.showHistoryScreen());
         document.getElementById('focusModeBtn')?.addEventListener('click', () => this.focusMode.start(this.currentDayIndex));
@@ -194,6 +198,7 @@ class GymApp {
         document.getElementById('addExerciseBtn')?.addEventListener('click', () => this.addExercise());
         document.getElementById('addMenuExerciseBtn')?.addEventListener('click', () => menuEditor.addExercise());
         this.setupTimerTapToEdit();
+        this.initVoiceWorkout();
 
         document.getElementById('timerStartBtn')?.addEventListener('click', () => {
             timer.start();
@@ -348,11 +353,53 @@ class GymApp {
         }
     }
 
-    startTraining() {
+    startTraining({ focusVoice = false } = {}) {
         this.sessionStartedAt = Date.now();
         this.switchScreen('trainingScreen');
         this.setTrainingDateOffset(0, { resetTimer: true });
         this.requestWakeLock();
+        if (focusVoice) {
+            setTimeout(() => document.getElementById('voicePanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+        }
+    }
+
+    initVoiceWorkout() {
+        if (!globalThis.VoiceWorkout) return;
+        void VoiceWorkout.init({
+            onSetsChanged: (sets) => this.applyVoiceSetsToForms(sets)
+        });
+    }
+
+    applyVoiceSetsToForms(sets = []) {
+        const confirmed = sets.filter(s => !s.novel);
+        if (!confirmed.length && !sets.some(s => s.novel)) {
+            // still refresh when novel-only so UI can show confirm box path
+        }
+        const byName = {};
+        for (const set of confirmed) {
+            byName[set.name] ||= [];
+            byName[set.name].push(set);
+        }
+        const draft = storage.getDraft(this.currentDayIndex) || {};
+        for (const [name, group] of Object.entries(byName)) {
+            const exists = storage.getExercisesForDay(this.currentDayIndex)
+                .some(ex => ex.name === name || (ex.alternatives || []).includes(name));
+            if (!exists) {
+                storage.addExerciseToDay(this.currentDayIndex, {
+                    name,
+                    weight: String(group[0].weight),
+                    sets: String(Math.max(group.length, 3)),
+                    perSetWeight: true
+                });
+            }
+            draft[name] = {
+                weight: String(group[0].weight),
+                sets: group.map(s => ({ weight: String(s.weight), reps: String(s.reps) }))
+            };
+        }
+        storage.saveDraft(this.currentDayIndex, draft);
+        this.renderExerciseList(this.currentDayIndex);
+        this.autoSaveRecord();
     }
 
     // 記録日を「今日／昨日／一昨日」から選び直す（日付をまたいでのトレーニングや、記録し忘れた過去分の入力用）。
@@ -370,6 +417,14 @@ class GymApp {
         });
 
         this.setupTrainingScreen(this.currentDayIndex, { resetTimer });
+        if (globalThis.VoiceWorkout) {
+            const date = this.calendarDateForVoice();
+            void VoiceWorkout.alignToDay(this.currentDayIndex, date);
+        }
+    }
+
+    calendarDateForVoice(date = this.sessionDate || new Date()) {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     }
 
     setupTrainingScreen(dayIndex, { resetTimer = true } = {}) {

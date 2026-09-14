@@ -12,7 +12,7 @@
             record.perSetWeight && Array.isArray(record.sets) ? record.sets.filter(x => x?.voiceSessionId === session.id).map(x =>
                 [name, x.voiceSetId, String(x.weight), String(x.reps)]) : []).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
         const observed = signature(exercises);
-        const wanted = JSON.stringify(session.state.sets.map(x => [x.name,x.id,String(x.weight),String(x.reps)]).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
+        const wanted = JSON.stringify(session.state.sets.filter(x => !x.novel).map(x => [x.name,x.id,String(x.weight),String(x.reps)]).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
         // The desired signature also accepts a retry after a successful localStorage
         // write whose following IndexedDB checkpoint was interrupted.
         if (!remove && session.historySignature !== undefined && observed !== session.historySignature && observed !== wanted) {
@@ -27,6 +27,7 @@
             else delete exercises[name];
         }
         for (const set of remove ? [] : session.state.sets) {
+            if (set.novel) continue;
             if (!Object.hasOwn(exercises, set.name)) exercises[set.name] = { perSetWeight: true, sets: [], setCount: 0 };
             const record = exercises[set.name];
             if (!record.perSetWeight) {

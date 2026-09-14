@@ -1,9 +1,10 @@
-const CACHE_NAME = 'gym-tracker-v46';
+const CACHE_NAME = 'gym-tracker-v48';
 const urlsToCache = [
     './',
     './index.html',
     './voice-test.html',
     './css/voice-test.css',
+    './css/style.css',
     './js/ai-voice-config.js',
     './js/ai-voice-model.js',
     './js/ai-voice-db.js',
@@ -12,7 +13,7 @@ const urlsToCache = [
     './js/ai-voice-menu.js',
     './js/ai-voice-history.js',
     './js/ai-voice.js',
-    './css/style.css',
+    './js/voice-workout.js',
     './js/storage.js',
     './js/utils.js',
     './js/milestones.js',

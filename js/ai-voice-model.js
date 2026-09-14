@@ -1,11 +1,12 @@
 /* Deterministic reducer: AI proposes operations; only validated operations mutate records. */
 (() => {
     const initial = names => ({ version: 2, names: [...new Set(names)], phase: 'recording', current: null,
-        weight: null, sets: [], pending: [], events: [], applied: [], audit: null, revision: 0 });
+        weight: null, sets: [], pending: [], novelNames: [], events: [], applied: [], audit: null, revision: 0 });
     const number = (x, min, max, integer = false) => typeof x === 'number' && Number.isFinite(x) && x >= min && x <= max && (!integer || Number.isInteger(x));
     function apply(state, packet) {
         if (state.applied.includes(packet.id)) return state;
         const next = structuredClone(state);
+        next.novelNames = Array.isArray(next.novelNames) ? next.novelNames : [];
         const issue = reason => next.pending.push({ id: packet.id, text: packet.text, reason, at: packet.at });
         next.events.push({ id: packet.id, text: packet.text, at: packet.at, operations: packet.operations });
         next.applied.push(packet.id); next.revision++; next.audit = null;
@@ -24,7 +25,9 @@
                     next.pending = next.pending.filter(p => p.id !== op.targetId); continue;
                 }
                 const name = op.name || next.current;
-                if (!next.names.includes(name)) throw Error('登録種目を特定できません');
+                if (typeof name !== 'string' || !name.trim() || name.length > 100) throw Error('種目名を確認してください');
+                const known = next.names.includes(name);
+                if (!known && !next.novelNames.includes(name)) next.novelNames.push(name);
                 const weight = op.weight === null || op.weight === undefined ? (name === next.current ? next.weight : null) : op.weight;
                 if (weight !== null && !number(weight, 0, 1000)) throw Error('重量を確認してください');
                 if (op.kind === 'select') { next.current = name; next.weight = weight; continue; }
@@ -32,7 +35,7 @@
                     if (weight === null) throw Error('種目の重量を指定してください');
                     if (!Array.isArray(op.reps) || !op.reps.length || op.reps.length > 20 || op.reps.some(r => !number(r, 1, 999, true))) throw Error('回数を確認してください');
                     next.current = name; next.weight = weight;
-                    for (const reps of op.reps) next.sets.push({ id: `${packet.id}:${appended++}`, name, weight, reps, sourceId: packet.id, at: packet.at });
+                    for (const reps of op.reps) next.sets.push({ id: `${packet.id}:${appended++}`, name, weight, reps, sourceId: packet.id, at: packet.at, novel: !known });
                     continue;
                 }
                 if (op.kind === 'correct' || op.kind === 'undo') {
@@ -55,16 +58,33 @@
         }
         return next;
     }
+    function approveNovel(state, name) {
+        const next = structuredClone(state);
+        next.novelNames = (next.novelNames || []).filter(n => n !== name);
+        if (!next.names.includes(name)) next.names.push(name);
+        for (const set of next.sets) if (set.name === name) delete set.novel;
+        next.revision++; next.audit = null;
+        return next;
+    }
+    function rejectNovel(state, name) {
+        const next = structuredClone(state);
+        next.novelNames = (next.novelNames || []).filter(n => n !== name);
+        next.sets = next.sets.filter(s => s.name !== name);
+        if (next.current === name) { next.current = null; next.weight = null; }
+        next.revision++; next.audit = null;
+        return next;
+    }
     function legacy(state) {
         const records = {};
         for (const set of state.sets) {
+            if (set.novel) continue;
             records[set.name] ||= { perSetWeight: true, sets: [], setCount: 0 };
             records[set.name].sets.push({ weight: String(set.weight), reps: String(set.reps) });
             records[set.name].setCount++;
         }
         return records;
     }
-    const api = { initial, apply, legacy };
+    const api = { initial, apply, legacy, approveNovel, rejectNovel };
     globalThis.AIVoiceModel = api;
     if (typeof module !== 'undefined') module.exports = api;
 })();

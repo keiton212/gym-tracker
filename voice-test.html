@@ -12,7 +12,7 @@
 <a class="skip" href="#dock">操作ボタンへ</a>
 <main>
   <header class="topbar">
-    <a class="back" href="index.html">← ホーム</a>
+    <a class="back" href="index.html">← ホーム（トレーニング開始で声も使えます）</a>
     <div class="topbar__title">
       <p class="brand">GymTracker</p>
       <h1>声で記録</h1>
@@ -89,10 +89,9 @@
     <div id="setupManual">
       <label class="field" for="endpoint">サービスURL</label>
       <input id="endpoint" type="url" placeholder="https://gym-tracker-voice.…workers.dev" autocomplete="off">
-      <label class="field" for="password">接続パスワード（初回だけ）</label>
-      <input id="password" type="password" autocomplete="current-password">
-      <button id="connect" class="btn btn--primary btn--block">接続する</button>
-      <p class="note">一度つなぐと、この端末では自動接続します。</p>
+      <input id="password" type="password" value="" hidden autocomplete="current-password">
+      <button id="connect" class="btn btn--primary btn--block">再接続する</button>
+      <p class="note">通常は自動接続します。パスワード入力は不要です。</p>
     </div>
     <p class="field">認識の方式（開始前）</p>
     <div class="provider-row" role="group" aria-label="音声処理方式">
@@ -105,8 +104,8 @@
 
   <details class="drawer">
     <summary>マイク・詳細・管理</summary>
-    <label class="field" for="mic">マイク</label>
-    <select id="mic"><option value="">iPhoneが選んだマイク</option></select>
+    <label class="field" for="mic">マイク（DJI Mic Mini）</label>
+    <select id="mic"><option value="">自動（DJIがあれば優先）</option></select>
     <div class="meta-row">
       <span id="captureStatus">マイク停止</span>
       <span id="queueStatus">送信待ち 0</span>

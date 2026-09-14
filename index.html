@@ -34,7 +34,7 @@
             <div id="backupReminderCard" class="backup-reminder"></div>
 
             <button id="startBtn" class="btn-primary btn-large">トレーニング開始</button>
-            <p><a href="voice-test.html">音声でトレーニングを記録</a></p>
+            <p class="home-voice-link"><a href="#" id="startVoiceLink">声でトレーニングを記録</a></p>
 
             <div class="action-buttons">
                 <button id="menuEditBtn" class="btn-secondary">メニュー編集</button>
@@ -83,8 +83,57 @@
             </div>
         </div>
 
+        <section class="voice-panel" id="voicePanel">
+            <div class="voice-panel__head">
+                <h3>声で記録</h3>
+                <span id="voiceElapsed" class="voice-elapsed">00:00</span>
+            </div>
+            <p id="voiceStatus" class="voice-status" role="status">音声を準備しています…</p>
+            <p id="voiceHint" class="voice-hint">接続中です</p>
+            <div class="voice-live">
+                <p id="voiceHeard">聞き取り：まだありません</p>
+                <p id="voiceReply">結果はここに出ます</p>
+                <p id="voiceQueue" class="voice-queue">送信待ち 0</p>
+            </div>
+            <ul id="voiceLiveSets" class="voice-live-sets"></ul>
+            <div id="voiceConfirmBox" class="voice-confirm-box" hidden>
+                <p id="voiceConfirmSummary"></p>
+                <p class="voice-confirm-ask">これで合っていますか？</p>
+                <p class="note">新しい種目は「合っている」でメニュー登録。「確認待ち」は手入力か「取り消す」です。</p>
+                <div class="voice-confirm-actions">
+                    <button type="button" id="voiceApproveNovel" class="btn-primary">合っている（登録）</button>
+                    <button type="button" id="voiceRejectNovel" class="btn-secondary">取り消す</button>
+                </div>
+            </div>
+            <details class="voice-settings">
+                <summary>声の設定（方式・マイク）</summary>
+                <p id="voiceConnectNote" class="note">接続確認中…</p>
+                <button type="button" id="voiceReconnect" class="btn-secondary">再接続</button>
+                <p class="voice-settings-label">認識方式</p>
+                <div class="voice-provider-row" role="group" aria-label="音声処理方式">
+                    <button type="button" id="voiceProviderOpenai" class="voice-chip">OpenAI</button>
+                    <button type="button" id="voiceProviderCodex" class="voice-chip">Codex PC</button>
+                    <button type="button" id="voiceProviderGroq" class="voice-chip">Groq</button>
+                </div>
+                <p id="voiceProviderNote" class="note"></p>
+                <label class="voice-settings-label" for="voiceMic">マイク（DJI Mic Mini）</label>
+                <select id="voiceMic"><option value="">自動（DJIがあれば優先）</option></select>
+                <button type="button" id="voiceMicRefresh" class="btn-secondary">マイク一覧を更新</button>
+                <p id="voiceMicActive" class="note">使用中：—</p>
+                <p class="note">DJIを接続してから「マイク一覧を更新」→ 一覧で選んで録音してください。</p>
+            </details>
+        </section>
+
         <button id="addExerciseBtn" class="btn-secondary">＋ 種目を追加</button>
         <button id="finishTrainingBtn" class="btn-primary">トレーニング終了</button>
+
+        <div class="voice-dock-spacer" aria-hidden="true"></div>
+        <div class="voice-dock" id="voiceDock">
+            <button type="button" id="voiceStart" class="btn-primary voice-dock-btn" disabled>録音を開始</button>
+            <button type="button" id="voiceStop" class="btn-secondary voice-dock-btn voice-stop" disabled>録音を終了</button>
+            <button type="button" id="voiceConfirm" class="btn-secondary voice-dock-btn" disabled>確認</button>
+            <button type="button" id="voiceSave" class="btn-primary voice-dock-btn" disabled>保存</button>
+        </div>
 
         <button class="btn-back btn-back-float" aria-label="ホームに戻る">←</button>
     </div>
@@ -208,6 +257,12 @@
     <script src="js/menu.js"></script>
     <script src="js/lockscreen.js"></script>
     <script src="js/focus.js"></script>
+    <script src="js/ai-voice-config.js"></script>
+    <script src="js/ai-voice-model.js"></script>
+    <script src="js/ai-voice-db.js"></script>
+    <script src="js/ai-voice-audio.js"></script>
+    <script src="js/ai-voice-history.js"></script>
+    <script src="js/voice-workout.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

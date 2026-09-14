@@ -37,16 +37,9 @@
         }
     }
     function updateSetupUI() {
-        const saved = !!localStorage.getItem(PASS_KEY);
-        const manual = $('setupManual');
-        if (manual) manual.hidden = ready;
         const note = $('setupStatus');
         if (!note) return;
-        if (ready) note.textContent = '接続済み。この端末では次回から自動でつながります。';
-        else if (saved) note.textContent = '自動接続に失敗しました。下のパスワードで再接続してください。';
-        else note.textContent = '初回だけ接続パスワードを入れてください。';
-        const setup = $('setup');
-        if (setup && setup.tagName === 'DETAILS') setup.open = !ready;
+        note.textContent = ready ? '自動接続済みです。パスワード入力は不要です。' : '自動接続に失敗しました。「再接続する」を押してください。';
     }
     const persist = () => db.put('sessions', s);
     const log = (type, detail = '') => { s.logs.push({ at: Date.now(), type, detail }); if (s.logs.length > 6000) s.logs.shift(); };
@@ -157,19 +150,19 @@
         updateSetupUI();
     }
     async function login(password) {
-        if (typeof password !== 'string' || !password) throw Error('接続パスワードを入力してください');
-        const value = new URL(($('endpoint').value || endpoint || '').trim());
-        if (value.protocol !== 'https:' || value.username || value.password || value.search || value.hash || value.pathname !== '/') {
+        const value = new URL(($('endpoint')?.value || endpoint || '').trim() || endpoint);
+        if (value.protocol !== 'https:' || value.username || value.password || value.search || value.hash || (value.pathname !== '/' && value.pathname !== '')) {
             throw Error('HTTPSのサービスURLを指定してください');
         }
         endpoint = value.origin;
+        const body = password ? { password } : {};
         const r = await fetch(endpoint + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password }), signal: AbortSignal.timeout(15000) });
+            body: JSON.stringify(body), signal: AbortSignal.timeout(15000) });
         const result = await r.json(); if (!r.ok) throw Error(result.error || 'unauthorized');
         token = result.token;
         localStorage.setItem('gym_ai_voice_endpoint', endpoint);
         localStorage.setItem('gym_ai_voice_token', token);
-        localStorage.setItem(PASS_KEY, password);
+        if (password) localStorage.setItem(PASS_KEY, password);
         if ($('password')) $('password').value = '';
         retryAt = 0;
         return true;
@@ -209,16 +202,14 @@
                 authenticated = await sessionOk();
                 if (!authenticated) {
                     const saved = localStorage.getItem(PASS_KEY);
-                    if (saved) {
-                        try {
-                            await login(saved);
-                            authenticated = await sessionOk();
-                        } catch { authenticated = false; }
-                    }
+                    try {
+                        await login(saved || '');
+                        authenticated = await sessionOk();
+                    } catch { authenticated = false; }
                 }
             }
             ready = r.ok && h.ready && authenticated;
-            message(!h.ready ? '音声サービスがまだ準備できていません。' : authenticated ? '準備OK。録音を開始できます。' : localStorage.getItem(PASS_KEY) ? '自動接続に失敗しました。' : '初回だけ接続パスワードが必要です。');
+            message(!h.ready ? '音声サービスがまだ準備できていません。' : authenticated ? '準備OK。録音を開始できます。' : '自動接続に失敗しました。');
         } catch { ready = false; message('音声サービスに接続できません。'); }
         render();
     }
@@ -281,7 +272,11 @@
             }
             ctx.onstatechange = () => { if (recording && ctx.state !== 'running') void stop('iPhoneが録音処理を停止しました', true); };
             const devices = await navigator.mediaDevices.enumerateDevices(), selected = $('mic').value;
-            $('mic').replaceChildren(new Option('iPhoneが選択したマイク', ''), ...devices.filter(d => d.kind === 'audioinput').map(d => new Option(d.label || 'マイク', d.deviceId))); $('mic').value = selected;
+            const inputs = devices.filter(d => d.kind === 'audioinput');
+            const dji = inputs.find(d => /dji|mic\s*mini/i.test(d.label || ''));
+            $('mic').replaceChildren(new Option('自動（DJIがあれば優先）', ''), ...inputs.map(d => new Option(d.label || 'マイク', d.deviceId)));
+            if (selected) $('mic').value = selected;
+            else if (dji) $('mic').value = dji.deviceId;
             log('capture-start', { microphone: stream.getAudioTracks()[0]?.label, rate: ctx.sampleRate });
             await persist(); await acquireWake(); render(); message('録音中。種目・キロ・回数を話してください。');
         } catch (e) { await stop(e.message || 'マイクを開始できませんでした', true); }
@@ -372,7 +367,7 @@
     function download(blob, name) { const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url),10000); }
     $('connect').onclick = async () => {
         try {
-            await login($('password').value);
+            await login(($('password')?.value || '').trim());
             await health();
         } catch (e) { ready = false; message('接続できません：' + e.message); updateSetupUI(); }
     };

@@ -72,8 +72,14 @@ export async function handle(request, env) {
     if (url.pathname === '/login') {
         const limit = await env.LOGIN_LIMIT.limit({ key: request.headers.get('CF-Connecting-IP') || 'unknown' });
         if (!limit.success) return json({ error: 'rate_limit' }, 429);
-        const { password } = JSON.parse(await (await bounded(request, 1024)).text());
-        if (typeof password !== 'string' || !equal(await digest(password), env.USER_PASS_HASH)) return json({ error: 'unauthorized' }, 401);
+        let password = '';
+        const raw = await (await bounded(request, 1024)).text();
+        if (raw.trim()) {
+            const body = JSON.parse(raw);
+            if (typeof body?.password === 'string') password = body.password;
+        }
+        // Origin was already checked above. Password remains optional for this personal app.
+        if (password && !equal(await digest(password), env.USER_PASS_HASH)) return json({ error: 'unauthorized' }, 401);
         const expiry = String(Date.now() + 12 * 3600000);
         return json({ token: `${expiry}.${await mac(expiry, env.AUTH_SECRET)}`, expiresAt: +expiry });
     }

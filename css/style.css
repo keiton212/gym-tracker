@@ -1432,6 +1432,172 @@ button, input {
     margin-bottom: 10px;
 }
 
+.home-voice-link {
+    margin: 10px 0 0;
+    text-align: center;
+}
+.home-voice-link a {
+    color: #0f766e;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.voice-panel {
+    margin: 16px 0 20px;
+    padding: 16px;
+    border-radius: 18px;
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+}
+.voice-panel__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.voice-panel h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #f8fafc;
+}
+.voice-elapsed {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: #94a3b8;
+}
+.voice-status {
+    margin: 0 0 4px;
+    font-weight: 800;
+    font-size: 1.02rem;
+}
+.voice-hint {
+    margin: 0 0 10px;
+    color: #5eead4;
+    font-weight: 700;
+}
+.voice-live {
+    background: #1e293b;
+    border-radius: 14px;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid #334155;
+}
+.voice-live p { margin: 0 0 4px; }
+#voiceReply { font-weight: 800; color: #6ee7b7; }
+.voice-queue, .voice-panel .note { color: #94a3b8; font-size: .88rem; }
+.voice-live-sets {
+    list-style: none;
+    margin: 0 0 12px;
+    padding: 0;
+}
+.voice-live-sets li {
+    padding: 10px 12px;
+    margin: 6px 0 0;
+    border-radius: 12px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    font-weight: 700;
+}
+.voice-confirm-box {
+    margin: 0 0 12px;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(251, 191, 36, .12);
+    border: 1px solid rgba(251, 191, 36, .45);
+}
+.voice-confirm-ask { font-weight: 800; margin: 8px 0; }
+.voice-confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.voice-dock-spacer {
+    height: calc(132px + env(safe-area-inset-bottom, 0px));
+}
+.voice-dock {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    z-index: 40;
+    display: none;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 18px;
+    background: rgba(15, 23, 42, .96);
+    border: 1px solid #334155;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+}
+#trainingScreen.active > .voice-dock {
+    display: grid;
+}
+.voice-dock-btn {
+    min-height: 52px;
+    font-weight: 800;
+    border-radius: 14px;
+}
+.voice-stop { background: #7f1d1d !important; color: #fecaca !important; border: 0; }
+body[data-voice-mode="recording"] .voice-dock {
+    border-color: #2dd4bf;
+}
+.voice-settings {
+    margin-top: 12px;
+    border-top: 1px solid #334155;
+    padding-top: 8px;
+}
+.voice-settings summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: #cbd5e1;
+    padding: 8px 0;
+}
+.voice-settings-label {
+    display: block;
+    margin: 10px 0 6px;
+    color: #94a3b8;
+    font-size: .88rem;
+    font-weight: 700;
+}
+.voice-provider-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+.voice-chip {
+    min-height: 44px;
+    border-radius: 12px;
+    border: 1px solid #475569;
+    background: #1e293b;
+    color: #e2e8f0;
+    font-weight: 700;
+}
+.voice-chip.is-selected {
+    border-color: #2dd4bf;
+    color: #5eead4;
+    background: rgba(45, 212, 191, .12);
+}
+.voice-settings select,
+.voice-settings .btn-secondary {
+    width: 100%;
+    margin-top: 6px;
+}
+.voice-settings select {
+    min-height: 48px;
+    border-radius: 12px;
+    border: 1px solid #475569;
+    background: #0b1220;
+    color: #e2e8f0;
+    padding: 10px 12px;
+}
+body[data-voice-mode="recording"] .voice-panel {
+    border-color: #2dd4bf;
+    box-shadow: 0 0 0 1px rgba(45, 212, 191, .25);
+}
+
 /* レスポンシブ */
 @media (max-width: 480px) {
     .weather-card {

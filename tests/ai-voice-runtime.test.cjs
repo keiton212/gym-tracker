@@ -110,7 +110,8 @@ test('expired token auto-reconnects with saved password and hides setup',async()
   if(url.endsWith('/health'))return Response.json({ready:true,providers:{openai:true,codex:true,groq:true}});
   if(url.endsWith('/session'))return Response.json({authenticated});
   if(url.endsWith('/login')){
-   assert.equal(JSON.parse(options.body).password,'saved-pass');
+   const body=options.body?JSON.parse(options.body):{};
+   assert.ok(!body.password || body.password==='saved-pass');
    authenticated=true;
    return Response.json({token:'fresh-token',expiresAt:Date.now()+3600000});
   }
@@ -118,8 +119,7 @@ test('expired token auto-reconnects with saved password and hides setup',async()
  };
  await r.init();
  assert.equal(r.element('enable').disabled,false);
- assert.equal(r.element('setupManual').hidden,true);
- assert.match(r.element('setupStatus').textContent,/自動|接続/);
+ assert.match(r.element('setupStatus').textContent,/自動接続/);
  assert.equal(r.stored.get('gym_ai_voice_token'),'fresh-token');
  assert.ok(r.calls.some(u=>u.endsWith('/login')));
 });

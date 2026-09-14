@@ -19,12 +19,22 @@ test('idempotent retry differs from another identical utterance',()=>{
  s=M.apply(s,p); s=M.apply(s,p); assert.equal(s.sets.length,1);
  s=M.apply(s,{...p,id:'2'}); assert.equal(s.sets.length,2);
 });
-test('unknown, missing weight, invalid numbers, uncertain and split audio do not create guessed records',()=>{
+test('unknown novel names are provisional; missing weight, invalid numbers, uncertain and split do not guess',()=>{
  let s=M.initial(names);
- for(const p of [packet('1',[op('append',{name:'unknown',weight:70,reps:[8]})]),packet('2',[op('append',{name:names[0],reps:[8]})]),
+ s=M.apply(s,packet('novel',[op('append',{name:'サイドレイズ',weight:10,reps:[12]})]));
+ assert.equal(s.sets.length,1); assert.equal(s.sets[0].novel,true); assert.deepEqual(s.novelNames,['サイドレイズ']);
+ assert.equal(M.legacy(s)['サイドレイズ'],undefined);
+ s=M.approveNovel(s,'サイドレイズ');
+ assert.equal(s.sets[0].novel,undefined); assert.ok(s.names.includes('サイドレイズ'));
+ assert.equal(M.legacy(s)['サイドレイズ'].sets[0].reps,'12');
+ s=M.initial(names);
+ for(const p of [packet('2',[op('append',{name:names[0],reps:[8]})]),
  packet('3',[op('append',{name:names[0],weight:70,reps:[-1]})]),packet('4',[op('append',{name:names[0],weight:70,reps:[8]})],{uncertain:true}),
  packet('5',[op('append',{name:names[0],weight:70,reps:[8]})],{boundary:true})]) s=M.apply(s,p);
- assert.equal(s.sets.length,0); assert.equal(s.pending.length,5);
+ assert.equal(s.sets.length,0); assert.equal(s.pending.length,4);
+ s=M.apply(M.initial(names),packet('n',[op('append',{name:'新品種',weight:20,reps:[10]})]));
+ s=M.rejectNovel(s,'新品種');
+ assert.equal(s.sets.length,0); assert.deepEqual(s.novelNames,[]);
 });
 test('targeted correction and undo are atomic; resolution cannot erase unrelated pending items',()=>{
  let s=M.apply(M.initial(names),packet('1',[op('append',{name:names[0],weight:70,reps:[8,6]})]));
