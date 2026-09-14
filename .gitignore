@@ -1,7 +1,13 @@
 .wrangler/
 node_modules/
+www/
 .dev.vars*
 .env*
 voice-worker/.wrangler/
 voice-worker/worker-configuration.d.ts
 __pycache__/
+*.xcuserstate
+**/DerivedData/
+**/xcuserdata/
+ios/App/Pods/
+ios/App/App/public/

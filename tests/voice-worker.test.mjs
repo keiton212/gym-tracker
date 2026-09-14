@@ -23,6 +23,7 @@ test('auth, CORS, secret readiness and oversized requests fail closed',async()=>
  assert.equal((await worker.fetch(req('/audit',{}),e)).status,401);
  assert.equal((await worker.fetch(req('/login',{password:'wrong'}),e)).status,401);
  assert.equal((await worker.fetch(req('/login',{password:'test-password'},{Origin:'https://evil.test'}),e)).status,403);
+ assert.equal((await worker.fetch(req('/login',{},{Origin:'capacitor://localhost'}),e)).status,200);
  assert.equal((await worker.fetch(req('/login',{password:'x'.repeat(2000)}),e)).status,413);
  const login=await worker.fetch(req('/login',{password:'test-password'}),e); const {token}=await login.json(); assert.ok(token);
  const auto=await worker.fetch(req('/login',{}),e); assert.equal(auto.status,200); assert.ok((await auto.json()).token);

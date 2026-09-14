@@ -1,0 +1,12 @@
+{
+  "appId": "com.keiton212.gymtracker",
+  "appName": "GymTracker",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#0f172a"
+  }
+}

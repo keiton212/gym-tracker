@@ -24,6 +24,10 @@
         source: null,
         mute: null,
         wake: null,
+        pcmListener: null,
+        flushListener: null,
+        useNativeCapture: false,
+        gapLimitMs: 6000,
         writes: Promise.resolve(),
         blockNo: 0,
         lastBlock: 0,
@@ -170,6 +174,12 @@
 
         async autoConnect() {
             const note = $('voiceConnectNote');
+            const nativeNote = $('voiceNativeNote');
+            if (nativeNote) {
+                nativeNote.textContent = globalThis.GymNativeAudio?.available?.()
+                    ? 'iOSアプリ版：Spotify同時再生・画面オフ録音に対応しています。'
+                    : 'Safari/PWAでは裏録音・Spotify同時は制限されます。iOSアプリ版なら対応します。';
+            }
             if (note) note.textContent = '接続確認中…';
             this.setStatus('音声サービスに接続しています…');
             try {
@@ -213,15 +223,24 @@
 
         async refreshMics(requestPermission) {
             try {
-                if (requestPermission) {
-                    const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    tmp.getTracks().forEach(t => t.stop());
-                }
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const inputs = devices.filter(d => d.kind === 'audioinput');
                 const select = $('voiceMic');
                 if (!select) return;
                 const saved = localStorage.getItem(MIC_KEY) || '';
+                let inputs = [];
+                if (globalThis.GymNativeAudio?.available()) {
+                    if (requestPermission) {
+                        try { await GymNativeAudio.configure(); } catch (_) { /* continue to list */ }
+                    }
+                    const nativeInputs = await GymNativeAudio.listInputs();
+                    inputs = nativeInputs.map(d => ({ deviceId: d.id, label: d.label || d.type || 'マイク' }));
+                } else {
+                    if (requestPermission) {
+                        const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        tmp.getTracks().forEach(t => t.stop());
+                    }
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    inputs = devices.filter(d => d.kind === 'audioinput').map(d => ({ deviceId: d.deviceId, label: d.label || 'マイク' }));
+                }
                 const preferred = inputs.find(d => d.deviceId === saved)
                     || inputs.find(d => this.isDjiLabel(d.label))
                     || null;
@@ -328,8 +347,10 @@
             if (s.finalized) this.setHint('保存済み。過去データで確認できます');
             else if (!s.state.names.length && !novel.length) this.setHint('先にメニュー種目を登録してください（setup-menu）');
             else if (novel.length || pending.length) this.setHint('「確認」で内容をチェックしてから保存');
-            else if (recording) this.setHint(this.busy ? '解析中。話し続けてOK' : '種目・キロ・回数を話してください');
-            else if (this.ready) this.setHint('下の「録音を開始」を押してください');
+            else if (recording) this.setHint(this.busy ? '解析中。話し続けてOK' : (this.useNativeCapture ? 'アプリ版：音楽・画面オフでも録音を続けます' : '種目・キロ・回数を話してください'));
+            else if (this.ready) this.setHint(globalThis.GymNativeAudio?.available?.()
+                ? '下の「録音を開始」（Spotify同時・バックグラウンド対応）'
+                : '下の「録音を開始」を押してください');
             else this.setHint('接続を待っています…');
             document.body.dataset.voiceMode = s.finalized ? 'done' : recording ? 'recording' : this.ready ? 'ready' : 'connecting';
         },
@@ -407,60 +428,85 @@
             } catch (_) { /* keep voice session even if menu write fails */ }
         },
 
+        handlePcmMessage(data) {
+            if (data.flushed) { this.flushResolve?.(); return; }
+            if (!data.pcm) return;
+            const limit = this.useNativeCapture ? 20000 : this.gapLimitMs;
+            if (this.recording && Date.now() - this.lastBlock > limit) {
+                if (this.useNativeCapture) {
+                    this.session.gaps.push({ at: Date.now(), reason: '音声の一時途切れ（継続中）' });
+                    this.lastBlock = Date.now();
+                } else {
+                    void this.stop('音声の受信が途切れました', true);
+                    return;
+                }
+            }
+            this.lastBlock = Date.now();
+            if (data.sequence !== this.received++) this.session.gaps.push({ at: Date.now(), reason: '音声ブロック不連続' });
+            this.buffered++;
+            this.writes = this.writes.then(() => this.acceptBlock(data))
+                .catch(e => { void this.stop('録音保存に失敗：' + e.message, true); })
+                .finally(() => this.buffered--);
+            if (this.buffered > 8) void this.stop('録音の保存が追いつきません', true);
+        },
+
         async start() {
             if (!this.ready || this.recording || this.session.finalized) return;
             try {
                 await this.refreshMics(false);
-                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-                await this.ctx.resume();
                 const estimate = await navigator.storage?.estimate?.();
                 if (estimate && estimate.quota - estimate.usage < 190000000) throw Error('空き容量が足りません（約190MB必要）');
-                this.stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        ...this.chosenMicConstraint(),
-                        channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true
-                    }
-                });
-                await this.ctx.audioWorklet.addModule('js/ai-voice-capture.js');
-                this.node = new AudioWorkletNode(this.ctx, 'gym-pcm');
-                this.source = this.ctx.createMediaStreamSource(this.stream);
-                this.mute = this.ctx.createGain(); this.mute.gain.value = 0;
-                this.source.connect(this.node); this.node.connect(this.mute); this.mute.connect(this.ctx.destination);
+
                 this.received = 0; this.lastBlock = Date.now(); this.recording = true;
                 this.activeStart = null; this.continuation = false;
+                this.useNativeCapture = !!globalThis.GymNativeAudio?.available();
+                this.gapLimitMs = this.useNativeCapture ? 20000 : 6000;
+
                 if (!this.session.startedAt) {
                     this.session.startedAt = Date.now();
                     if (window.app?.sessionDate) this.session.recordDate = this.calendarDate(window.app.sessionDate);
                     this.session.dayIndex = window.app?.currentDayIndex ?? this.session.dayIndex;
                 }
-                const label = this.stream.getAudioTracks()[0]?.label || 'マイク';
-                if ($('voiceMicActive')) $('voiceMicActive').textContent = '使用中：' + label;
-                this.node.port.onmessage = ({ data }) => {
-                    if (data.flushed) { this.flushResolve?.(); return; }
-                    if (!data.pcm) return;
-                    if (this.recording && Date.now() - this.lastBlock > 6000) {
-                        void this.stop('音声の受信が途切れました', true);
+
+                if (this.useNativeCapture) {
+                    await GymNativeAudio.configure();
+                    this.pcmListener = await GymNativeAudio.addPcmListener((data) => this.handlePcmMessage(data));
+                    this.flushListener = await GymNativeAudio.addFlushListener(() => this.flushResolve?.());
+                    const deviceId = $('voiceMic')?.value || localStorage.getItem(MIC_KEY) || '';
+                    await GymNativeAudio.startCapture(deviceId);
+                    const label = $('voiceMic')?.selectedOptions?.[0]?.text || 'ネイティブマイク';
+                    if ($('voiceMicActive')) $('voiceMicActive').textContent = '使用中：' + label + '（ネイティブ）';
+                } else {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    await this.ctx.resume();
+                    this.stream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            ...this.chosenMicConstraint(),
+                            channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true
+                        }
+                    });
+                    await this.ctx.audioWorklet.addModule('js/ai-voice-capture.js');
+                    this.node = new AudioWorkletNode(this.ctx, 'gym-pcm');
+                    this.source = this.ctx.createMediaStreamSource(this.stream);
+                    this.mute = this.ctx.createGain(); this.mute.gain.value = 0;
+                    this.source.connect(this.node); this.node.connect(this.mute); this.mute.connect(this.ctx.destination);
+                    const label = this.stream.getAudioTracks()[0]?.label || 'マイク';
+                    if ($('voiceMicActive')) $('voiceMicActive').textContent = '使用中：' + label;
+                    this.node.port.onmessage = ({ data }) => this.handlePcmMessage(data);
+                    for (const t of this.stream.getAudioTracks()) {
+                        t.addEventListener('ended', () => { if (this.recording) void this.stop('マイクが切れました', true); });
+                        t.addEventListener('mute', () => { if (this.recording) void this.stop('マイク入力が中断されました', true); });
                     }
-                    this.lastBlock = Date.now();
-                    if (data.sequence !== this.received++) this.session.gaps.push({ at: Date.now(), reason: '音声ブロック不連続' });
-                    this.buffered++;
-                    this.writes = this.writes.then(() => this.acceptBlock(data))
-                        .catch(e => { void this.stop('録音保存に失敗：' + e.message, true); })
-                        .finally(() => this.buffered--);
-                    if (this.buffered > 8) void this.stop('録音の保存が追いつきません', true);
-                };
-                for (const t of this.stream.getAudioTracks()) {
-                    t.addEventListener('ended', () => { if (this.recording) void this.stop('マイクが切れました', true); });
-                    t.addEventListener('mute', () => { if (this.recording) void this.stop('マイク入力が中断されました', true); });
+                    this.ctx.onstatechange = () => {
+                        if (this.recording && this.ctx.state !== 'running') void this.stop('iPhoneが録音を停止しました', true);
+                    };
                 }
-                this.ctx.onstatechange = () => {
-                    if (this.recording && this.ctx.state !== 'running') void this.stop('iPhoneが録音を停止しました', true);
-                };
+
                 if (navigator.wakeLock) {
                     try { this.wake = await navigator.wakeLock.request('screen'); } catch (_) { /* optional */ }
                 }
                 await this.persist();
-                this.setStatus('録音中');
+                this.setStatus(this.useNativeCapture ? '録音中（アプリ・音楽同時OK）' : '録音中');
                 this.render();
             } catch (e) {
                 await this.stop(e.message || 'マイクを開始できません', true);
@@ -503,12 +549,29 @@
             if (this.stopping) return;
             this.stopping = true;
             const was = this.recording;
+            const usedNative = this.useNativeCapture;
             this.recording = false;
             if (gap) {
                 this.session.interrupted = true;
                 this.session.gaps.push({ at: Date.now(), reason });
             }
-            if (this.node && was) {
+            if (usedNative && was) {
+                let flushed = false;
+                const flushWait = new Promise(resolve => {
+                    this.flushResolve = () => { flushed = true; resolve(); };
+                });
+                await GymNativeAudio.stopCapture();
+                await Promise.race([
+                    flushWait,
+                    new Promise(resolve => setTimeout(resolve, 1500))
+                ]);
+                if (!flushed) this.session.gaps.push({ at: Date.now(), reason: '末尾を取得できませんでした' });
+                try { await this.pcmListener?.remove(); } catch (_) { /* ignore */ }
+                try { await this.flushListener?.remove(); } catch (_) { /* ignore */ }
+                this.pcmListener = null;
+                this.flushListener = null;
+                await GymNativeAudio.teardown();
+            } else if (this.node && was) {
                 let flushed = false;
                 await Promise.race([
                     new Promise(resolve => { this.flushResolve = () => { flushed = true; resolve(); }; this.node.port.postMessage('flush'); }),
@@ -521,6 +584,7 @@
             await this.ctx?.close().catch(() => {});
             await this.wake?.release().catch(() => {});
             this.wake = null; this.node = null; this.stream = null; this.ctx = null;
+            this.useNativeCapture = false;
             await this.writes.catch(() => {});
             if (this.activeStart !== null) await this.makeJob(this.blockNo - 1, gap).catch(() => {});
             await this.persist().catch(() => {});
@@ -684,7 +748,15 @@
         tick() {
             if (!this.session) return;
             this.render();
-            if (this.recording && Date.now() - this.lastBlock > 6000) void this.stop('音声が届かなくなりました', true);
+            const limit = this.useNativeCapture ? 45000 : 6000;
+            if (this.recording && Date.now() - this.lastBlock > limit) {
+                if (this.useNativeCapture) {
+                    this.session.gaps.push({ at: Date.now(), reason: '長時間の音声空白（継続中）' });
+                    this.lastBlock = Date.now();
+                } else {
+                    void this.stop('音声が届かなくなりました', true);
+                }
+            }
             void this.pump();
         }
     };

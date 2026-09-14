@@ -1,0 +1,20 @@
+{
+  "name": "gym-tracker",
+  "private": true,
+  "version": "1.0.0",
+  "description": "GymTracker Capacitor shell for iOS background / Spotify-friendly recording",
+  "scripts": {
+    "www": "node scripts/sync-www.cjs",
+    "cap:sync": "npm run www && npx cap sync ios",
+    "cap:open": "npx cap open ios",
+    "cap:copy": "npm run www && npx cap copy ios",
+    "test": "node --test tests/ai-voice.test.cjs tests/ai-voice-runtime.test.cjs tests/ai-voice-history.test.cjs tests/voice-worker.test.mjs tests/voice-relay.test.mjs tests/gym-native-audio.test.cjs"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/ios": "^7.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3"
+  }
+}

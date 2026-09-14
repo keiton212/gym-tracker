@@ -52,6 +52,19 @@ export class VoiceBudget {
         return json({ allowed }, allowed ? 200 : 429);
     }
 }
+function allowedOrigins(env) {
+    const list = new Set([env.ALLOWED_ORIGIN, 'capacitor://localhost', 'http://localhost', 'ionic://localhost'].filter(Boolean));
+    if (env.ALLOWED_ORIGINS) {
+        for (const part of String(env.ALLOWED_ORIGINS).split(',')) {
+            const o = part.trim();
+            if (o) list.add(o);
+        }
+    }
+    return list;
+}
+function isAllowedOrigin(origin, env) {
+    return typeof origin === 'string' && allowedOrigins(env).has(origin);
+}
 export async function handle(request, env) {
     const origin = request.headers.get('Origin'), url = new URL(request.url);
     const relay = (action, body = {}) => env.RELAY.get(env.RELAY.idFromName('owner')).fetch('https://relay/'+action, { method:'POST', body:JSON.stringify(body) });
@@ -63,7 +76,7 @@ export async function handle(request, env) {
         if (action === 'complete' && (typeof body.id !== 'string' || typeof body.lease !== 'string' || body.result?.id !== body.id)) return json({error:'invalid_result'},400);
         return relay(action, body);
     }
-    if (origin !== env.ALLOWED_ORIGIN) return json({ error: 'origin' }, 403);
+    if (!isAllowedOrigin(origin, env)) return json({ error: 'origin' }, 403);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204 });
     if (url.pathname === '/health' && request.method === 'GET') return json({ ready: !!(env.AUTH_SECRET && env.USER_PASS_HASH), providers:{openai:!!env.OPENAI_API_KEY,codex:!!env.CODEX_BRIDGE_SECRET,groq:!!env.GROQ_API_KEY}, mode:'live' });
     if (url.pathname === '/session' && request.method === 'GET') return json({ authenticated: !!env.AUTH_SECRET && await authorized(request, env) });
@@ -152,8 +165,9 @@ export default {
             response = json({ error: status === 413 ? 'too_large' : status === 502 ? 'upstream_unavailable' : 'invalid_request' }, status);
         }
         const headers = new Headers(response.headers);
-        if (request.headers.get('Origin') === env.ALLOWED_ORIGIN) {
-            headers.set('Access-Control-Allow-Origin', env.ALLOWED_ORIGIN); headers.set('Vary', 'Origin');
+        const origin = request.headers.get('Origin');
+        if (isAllowedOrigin(origin, env)) {
+            headers.set('Access-Control-Allow-Origin', origin); headers.set('Vary', 'Origin');
             headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization'); headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
         }
         return new Response(response.body, { status: response.status, headers });
