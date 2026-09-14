@@ -364,7 +364,13 @@ class GymApp {
     }
 
     initVoiceWorkout() {
-        if (!globalThis.VoiceWorkout) return;
+        if (!globalThis.VoiceWorkout) {
+            const status = document.getElementById('voiceStatus');
+            const note = document.getElementById('voiceConnectNote');
+            if (status) status.textContent = '音声機能の読み込みに失敗しました。ページを再読み込みしてください';
+            if (note) note.textContent = 'スクリプト読み込みエラー';
+            return;
+        }
         void VoiceWorkout.init({
             onSetsChanged: (sets) => this.applyVoiceSetsToForms(sets)
         });

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gym-tracker-v49';
+const CACHE_NAME = 'gym-tracker-v50';
 const urlsToCache = [
     './',
     './index.html',
@@ -14,6 +14,7 @@ const urlsToCache = [
     './js/ai-voice-history.js',
     './js/ai-voice.js',
     './js/voice-workout.js',
+    './js/voice-workout.js?v=49',
     './js/storage.js',
     './js/utils.js',
     './js/milestones.js',
