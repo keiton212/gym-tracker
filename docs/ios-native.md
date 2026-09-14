@@ -1,7 +1,7 @@
 # GymTracker iOS アプリ（Windows 開発向け）
 
 Safari/PWA ではバックグラウンド録音と Spotify 同時再生が iOS に止められます。  
-このリポジトリの Capacitor アプリは `AVAudioSession` + ネイティブ PCM でそれを回避します。
+このリポジトリの Capacitor アプリは `AVAudioSession` + ネイティブ PCM で対応を目指しています。シミュレータのコンパイル成功だけでは、Spotify同時再生や画面ロック中の録音・発話反映が成功したとは判断できません。実機検証が必要です。
 
 **Mac は不要です。** コードは Windows、ビルドは GitHub Actions（macOS ランナー）です。
 
@@ -31,17 +31,16 @@ GitHub に push するか、Actions で **iOS Build** を `workflow_dispatch` �
 
 ### 3. 実機インストール（iPhone）
 
-実機用 IPA の署名には **Apple Developer（有料 Team）の証明書**が必要です。  
-Windows からは次のどちらかです。
+今回のGitHub ActionsによるDevelopment / Ad Hoc配布には、Apple Developer Programの有料Team、秘密鍵を含む証明書（p12）、対象iPhoneを登録したプロビジョニングプロファイルを使用します。無料Apple AccountでSideloadlyが再署名する方法とは別の手順です。
 
-**A. Sideloadly（手軽・7日ごと再署名が多い）**
+**A. Sideloadlyでインストール**
 
 1. [Sideloadly](https://sideloadly.io/) を Windows に入れる
-2. Apple ID でログイン
-3. 署名済み IPA を iPhone にインストール
-4. 設定 → 一般 → VPNとデバイス管理 で開発元を信頼
+2. iPhoneをUSB接続し、ロックを解除して「このコンピュータを信頼」を確認
+3. 下記Actionsで作るIPAは、既存署名を保持する通常インストール方式が利用できるか確認してインストール。Apple Accountで再署名する方式を選んだ場合は署名条件が変わるため、別方式として記録する
+4. iPhoneが要求する信頼設定・Developer Modeを確認。表示されない設定を完了扱いにしない
 
-※ 署名済み IPA は、有料 Apple Developer で作った証明書を GitHub Secrets に入れたあと、別途「Device IPA」ジョブを足すか、一度だけ借り物 Mac / クラウド Mac で Archive する必要があります。無料 Apple ID だけでは Background Modes 付きの安定配布が難しい場合があります。
+Sideloadly本体とWindows用Appleドライバの要件は [公式サイト](https://sideloadly.io/) で確認してください。既存のAppleソフトを勝手に削除しないでください。
 
 **B. 有料 Apple Developer + 証明書を Secrets に登録（推奨・安定）**
 
@@ -52,7 +51,20 @@ GitHub リポジトリ Secrets 例:
 - `APPLE_CERTIFICATE_PASSWORD`
 - `APPLE_PROVISIONING_PROFILE_BASE64`
 
-用意できたら言ってください。Device IPA 用 workflow を有効化して、Artifacts から IPA を落とせるようにします。
+`.github/workflows/ios-device.yml` の **iOS Device IPA** が `scripts/build-ios-device.sh` で署名・Archive・Exportを実行し、`GymTracker-device-ipa`（保存7日）を出力します。シークレットが不足している場合は名前だけを表示して停止します。プロファイルのTeam・Bundle ID・期限・登録端末・証明書の一致も確認します。
+
+2026-09-14確認時点では、GitHubの既定ブランチは `main`、最新iOSコードは `master` にあります。手動実行ボタンは既定ブランチにworkflowがないと使えないため、既定ブランチを勝手に変更しないでください。代わりに、4つのSecretsを登録してから、iOSコードとこのworkflowを含む確認済みコミットに一意の `ios-device-` タグを付けてpushするとビルドが始まります。
+
+```powershell
+git status --short
+git log -1 --oneline
+# 最新コードとworkflowが含まれることを確認してから実行。タグは再利用しない。
+$iosTag = 'ios-device-' + (Get-Date -Format 'yyyyMMdd-HHmmss')
+git tag $iosTag HEAD
+git push origin $iosTag
+```
+
+GitHub Actionsが成功するまで、Device IPA生成を完了扱いにしないでください。秘密鍵・p12・プロファイル・パスワードはリポジトリやチャットへ保存しません。IPAにも登録端末情報を含む署名プロファイルが入るため、公開Releaseへ添付しないでください。
 
 ### 4. 実機検証チェックリスト
 
@@ -69,4 +81,4 @@ GitHub リポジトリ Secrets 例:
 | 実行環境 | 裏録音 / Spotify 同時 |
 |---|---|
 | Safari / GitHub Pages PWA | 不可（iOS 制限） |
-| Capacitor iOS アプリ | 対応（このプロジェクト） |
+| Capacitor iOS アプリ | ネイティブ経路を実装済み。実機動作は未検証 |

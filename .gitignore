@@ -11,3 +11,8 @@ __pycache__/
 **/xcuserdata/
 ios/App/Pods/
 ios/App/App/public/
+*.p12
+*.p8
+*.mobileprovision
+*.csr
+*.key
