@@ -393,35 +393,92 @@ class GymApp {
         this.autoSaveRecord();
     }
 
+    mergeActiveScreenIntoDraft() {
+        if (!document.querySelector('#exerciseList .exercise-record')) return;
+        const draft = storage.getDraft(this.currentDayIndex) || {};
+        document.querySelectorAll('#exerciseList .exercise-record').forEach(card => {
+            const activeVariant = card.querySelector('.exercise-variant.active');
+            const name = card.querySelector('.exercise-choice-btn.active')?.dataset.choice
+                || activeVariant?.dataset.variantName
+                || card.querySelector('.exercise-name-input')?.value.trim();
+            if (!name || !activeVariant) return;
+            const perSet = !!activeVariant.querySelector('.per-set-weight-checkbox')?.checked;
+            const rows = [...activeVariant.querySelectorAll('.set-input-row')];
+            draft[name] = {
+                weight: activeVariant.querySelector('.weight-input')?.value || '',
+                sets: rows.map(row => perSet
+                    ? {
+                        weight: row.querySelector('.set-weight-input')?.value || '',
+                        reps: row.querySelector('.reps-input')?.value || ''
+                    }
+                    : (row.querySelector('.reps-input')?.value || ''))
+            };
+        });
+        storage.saveDraft(this.currentDayIndex, draft);
+    }
+
+    activateExerciseVariant(name) {
+        document.querySelectorAll('#exerciseList .exercise-record').forEach(card => {
+            const variants = [...card.querySelectorAll('.exercise-variant')];
+            const match = variants.find(v => v.dataset.variantName === name);
+            if (!match) return;
+            card.querySelectorAll('.exercise-choice-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.choice === name);
+            });
+            variants.forEach(v => v.classList.toggle('active', v === match));
+        });
+    }
+
     applyVoiceSetsToForms(sets = []) {
+        const sync = globalThis.VoiceFormSync;
+        if (!sync) return;
+
+        // Keep other exercises' in-progress typing before voice rewrite/re-render.
+        this.mergeActiveScreenIntoDraft();
+
         const confirmed = sets.filter(s => !s.novel);
-        if (!confirmed.length && !sets.some(s => s.novel)) {
-            // still refresh when novel-only so UI can show confirm box path
-        }
         const byName = {};
         for (const set of confirmed) {
             byName[set.name] ||= [];
             byName[set.name].push(set);
         }
-        const draft = storage.getDraft(this.currentDayIndex) || {};
+
+        const dayIndex = this.currentDayIndex;
+        const draft = storage.getDraft(dayIndex) || {};
+        const activated = [];
+
         for (const [name, group] of Object.entries(byName)) {
-            const exists = storage.getExercisesForDay(this.currentDayIndex)
-                .some(ex => ex.name === name || (ex.alternatives || []).includes(name));
-            if (!exists) {
-                storage.addExerciseToDay(this.currentDayIndex, {
+            let exercise = sync.findMenuExercise(storage.getExercisesForDay(dayIndex), name);
+            if (!exercise) {
+                storage.addExerciseToDay(dayIndex, {
                     name,
-                    weight: String(group[0].weight),
+                    weight: String(group[0].weight ?? ''),
                     sets: String(Math.max(group.length, 3)),
                     perSetWeight: true
                 });
+                exercise = sync.findMenuExercise(storage.getExercisesForDay(dayIndex), name);
+            } else {
+                const existingDraft = draft[name];
+                const nextCount = sync.desiredSetCount(exercise, group, existingDraft);
+                const updates = { perSetWeight: true };
+                if (nextCount > (parseInt(exercise.sets, 10) || 1)) {
+                    updates.sets = String(nextCount);
+                }
+                storage.updateExercise(dayIndex, exercise.id, updates);
+                exercise = sync.findMenuExercise(storage.getExercisesForDay(dayIndex), name) || {
+                    ...exercise,
+                    ...updates
+                };
             }
-            draft[name] = {
-                weight: String(group[0].weight),
-                sets: group.map(s => ({ weight: String(s.weight), reps: String(s.reps) }))
-            };
+
+            const rowCount = sync.desiredSetCount(exercise, group, draft[name]);
+            draft[name] = sync.mergeVoiceSetsIntoDraft(draft[name], group, rowCount);
+            activated.push(name);
         }
-        storage.saveDraft(this.currentDayIndex, draft);
-        this.renderExerciseList(this.currentDayIndex);
+
+        storage.saveDraft(dayIndex, draft);
+        this.renderExerciseList(dayIndex);
+        for (const name of activated) this.activateExerciseVariant(name);
         this.autoSaveRecord();
     }
 

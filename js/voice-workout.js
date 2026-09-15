@@ -566,7 +566,7 @@
             if (s.finalized) this.setHint('保存済み。過去データで確認できます');
             else if (!s.state.names.length && !novel.length) this.setHint('先にメニュー種目を登録してください（setup-menu）');
             else if (novel.length || pending.length) this.setHint('セットはタップで修正できます。「確認」で新種目をチェック');
-            else if (s.state.sets.length) this.setHint('認識ミスはセット一覧で修正できます');
+            else if (s.state.sets.length) this.setHint('認識結果は下のメニュー入力欄にも入ります。ミスはセット一覧で修正可');
             else if (this.starting) this.setHint('マイクを開始しています…');
             else if (recording) this.setHint(this.busy ? '解析中。話し続けてOK' : (this.useNativeCapture ? 'アプリ版：音楽・画面オフでも録音を続けます' : '種目・キロ・回数を話してください'));
             else if (this.ready) this.setHint(globalThis.GymNativeAudio?.available?.()
