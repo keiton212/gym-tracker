@@ -1500,6 +1500,68 @@ button, input {
     border: 1px solid #334155;
     font-weight: 700;
 }
+.voice-set-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 8px;
+    align-items: center;
+}
+.voice-set-name {
+    font-weight: 800;
+    font-size: .92rem;
+    line-height: 1.3;
+    word-break: break-word;
+}
+.voice-set-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 56px;
+}
+.voice-set-field span {
+    font-size: .72rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+.voice-set-field input {
+    width: 100%;
+    min-width: 0;
+    padding: 8px 6px;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: #0f172a;
+    color: #f8fafc;
+    font-weight: 800;
+    text-align: center;
+}
+.voice-set-delete {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: #334155;
+    color: #e2e8f0;
+    font-size: .82rem;
+    font-weight: 700;
+}
+.voice-pending-list {
+    list-style: none;
+    margin: 0 0 12px;
+    padding: 0;
+}
+.voice-pending-list li {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 10px 12px;
+    margin: 6px 0 0;
+    border-radius: 12px;
+    background: rgba(251, 191, 36, .08);
+    border: 1px solid rgba(251, 191, 36, .35);
+    font-size: .88rem;
+    line-height: 1.4;
+}
+.voice-pending-list span { flex: 1; }
 .voice-confirm-box {
     margin: 0 0 12px;
     padding: 12px;

@@ -18,4 +18,11 @@ test('voice-workout source includes native capture path', () => {
   assert.match(src, /useNativeCapture/);
   assert.match(src, /GymNativeAudio/);
   assert.match(src, /録音中（アプリ・音楽同時OK）/);
+  assert.match(src, /captureStartedAt/);
+  assert.match(src, /releaseCapture/);
+  assert.match(src, /openMicStream/);
+  // recording must be armed only after the capture pipeline is ready
+  assert.match(src, /Arm recording only after the capture pipeline is live/);
+  // spurious iOS mute must not hard-stop capture
+  assert.match(src, /spurious "mute"/);
 });

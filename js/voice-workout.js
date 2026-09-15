@@ -9,8 +9,10 @@
     const VoiceWorkout = {
         ready: false,
         recording: false,
+        starting: false,
         busy: false,
         stopping: false,
+        captureStartedAt: 0,
         db: null,
         session: null,
         jobs: [],
@@ -43,6 +45,8 @@
         onSetsChanged: null,
         onSessionDiscarded: null,
         discarding: false,
+        editing: false,
+        setsRevision: -1,
 
         async init({ onSetsChanged, onSessionDiscarded } = {}) {
             this.onSetsChanged = onSetsChanged || null;
@@ -284,6 +288,139 @@
             this.onSetsChanged?.(this.session?.state?.sets || [], this.session);
         },
 
+        async editRecord(operation, text) {
+            if (this.recording || this.busy || this.stopping || this.editing || this.discarding || this.session?.finalized) return;
+            this.editing = true;
+            this.render();
+            try {
+                await this.writes;
+                this.session.state = AIVoiceModel.apply(this.session.state, {
+                    id: crypto.randomUUID(),
+                    at: Date.now(),
+                    text,
+                    operations: [operation]
+                });
+                await this.persist();
+                try {
+                    this.syncHistory();
+                    await this.persist();
+                } catch (e) {
+                    this.setStatus('履歴反映に失敗：' + e.message);
+                }
+                this.setsRevision = -1;
+                this.emitSets();
+                this.setStatus('セットを更新しました');
+            } catch (e) {
+                this.setStatus('更新に失敗：' + e.message);
+            } finally {
+                this.editing = false;
+                this.render();
+            }
+        },
+
+        applySetEdit(setId, weightRaw, repsRaw) {
+            const set = this.session?.state?.sets.find(s => s.id === setId);
+            if (!set) return;
+            const reps = Number.parseInt(repsRaw, 10);
+            if (!Number.isInteger(reps) || reps < 1 || reps > 999) {
+                this.setStatus('回数は1〜999の整数で入力してください');
+                return;
+            }
+            const weightText = String(weightRaw ?? '').trim();
+            const weight = weightText === '' || weightText === '自重' ? 0 : Number(weightText);
+            if (!Number.isFinite(weight) || weight < 0 || weight > 1000) {
+                this.setStatus('重量は0〜1000kgで入力してください（自重は0）');
+                return;
+            }
+            if (set.weight === weight && set.reps === reps) return;
+            void this.editRecord(
+                { kind: 'correct', name: set.name, targetId: setId, weight, reps: [reps] },
+                `${set.name}を手動訂正`
+            );
+        },
+
+        renderVoiceSets() {
+            const list = $('voiceLiveSets');
+            if (!list || !this.session) return;
+            const s = this.session;
+            const disabled = this.recording || this.busy || this.stopping || this.editing || this.discarding || s.finalized;
+            const counts = {};
+            list.replaceChildren(...s.state.sets.map(set => {
+                counts[set.name] = (counts[set.name] || 0) + 1;
+                const li = document.createElement('li');
+                li.className = 'voice-set-row';
+                const name = document.createElement('span');
+                name.className = 'voice-set-name';
+                name.textContent = `${set.name}${set.novel ? '（未登録）' : ''} · ${counts[set.name]}セット目`;
+                const weightField = document.createElement('label');
+                weightField.className = 'voice-set-field';
+                weightField.innerHTML = '<span>kg</span>';
+                const weightInput = document.createElement('input');
+                weightInput.type = 'text';
+                weightInput.inputMode = 'decimal';
+                weightInput.value = set.weight === 0 ? '0' : String(set.weight);
+                weightInput.disabled = disabled;
+                weightInput.setAttribute('aria-label', `${set.name}の重量`);
+                weightField.appendChild(weightInput);
+                const repsField = document.createElement('label');
+                repsField.className = 'voice-set-field';
+                repsField.innerHTML = '<span>回</span>';
+                const repsInput = document.createElement('input');
+                repsInput.type = 'text';
+                repsInput.inputMode = 'numeric';
+                repsInput.value = String(set.reps);
+                repsInput.disabled = disabled;
+                repsInput.setAttribute('aria-label', `${set.name}の回数`);
+                repsField.appendChild(repsInput);
+                const del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'voice-set-delete';
+                del.textContent = '削除';
+                del.disabled = disabled;
+                del.addEventListener('click', () => {
+                    void this.editRecord(
+                        { kind: 'undo', name: set.name, targetId: set.id },
+                        `${set.name}の${counts[set.name]}セット目を削除`
+                    );
+                });
+                const commit = () => this.applySetEdit(set.id, weightInput.value, repsInput.value);
+                weightInput.addEventListener('change', commit);
+                repsInput.addEventListener('change', commit);
+                li.replaceChildren(name, weightField, repsField, del);
+                return li;
+            }));
+        },
+
+        renderPendingList() {
+            const list = $('voicePendingList');
+            if (!list || !this.session) return;
+            const pending = this.session.state.pending || [];
+            list.hidden = !pending.length;
+            if (!pending.length) {
+                list.replaceChildren();
+                return;
+            }
+            const disabled = this.recording || this.busy || this.stopping || this.editing || this.discarding || this.session.finalized;
+            list.replaceChildren(...pending.map((p, i) => {
+                const li = document.createElement('li');
+                const label = document.createElement('span');
+                label.textContent = `確認待ち${i + 1}：「${p.text}」 — ${p.reason || '内容不明'}`;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'voice-set-delete';
+                btn.textContent = '無視';
+                btn.disabled = disabled;
+                btn.addEventListener('click', () => {
+                    void this.editRecord(
+                        { kind: 'resolve', targetId: p.id },
+                        `確認待ち${i + 1}を無視`
+                    );
+                });
+                li.replaceChildren(label, btn);
+                return li;
+            }));
+        },
+
         hasDiscardableData() {
             const s = this.session;
             if (!s || s.finalized) return false;
@@ -340,6 +477,7 @@
                 this.retryAt = 0;
                 this.failures = 0;
                 this.clearLiveUi();
+                this.setsRevision = -1;
                 await this.persist();
                 this.onSessionDiscarded?.(namesToClear);
                 this.emitSets();
@@ -359,10 +497,11 @@
             const novel = s.state.novelNames || [];
             const pending = s.state.pending || [];
             const recording = this.recording;
-            const canStart = this.ready && !recording && !this.stopping && !s.finalized && s.state.names.length + novel.length > 0;
-            if ($('voiceStart')) $('voiceStart').disabled = !canStart || this.busy;
-            if ($('voiceStop')) $('voiceStop').disabled = !recording;
-            if ($('voiceConfirm')) $('voiceConfirm').disabled = this.busy || recording || (!novel.length && !pending.length);
+            const canStart = this.ready && !recording && !this.starting && !this.stopping && !s.finalized
+                && s.state.names.length + novel.length > 0;
+            if ($('voiceStart')) $('voiceStart').disabled = !canStart || this.editing;
+            if ($('voiceStop')) $('voiceStop').disabled = !recording || this.stopping;
+            if ($('voiceConfirm')) $('voiceConfirm').disabled = this.busy || recording || this.editing || (!novel.length && !pending.length);
             if ($('voiceSave')) {
                 $('voiceSave').disabled = this.busy || recording || this.stopping || s.finalized
                     || novel.length > 0 || pending.length > 0
@@ -400,14 +539,12 @@
                     `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
             }
             const list = $('voiceLiveSets');
-            if (list) {
-                list.replaceChildren(...s.state.sets.map(set => {
-                    const li = document.createElement('li');
-                    li.textContent = `${set.name} ${set.weight === 0 ? '自重' : set.weight + 'kg'} × ${set.reps}回`
-                        + (set.novel ? '（未登録・確認待ち）' : '');
-                    return li;
-                }));
+            const focusedInSets = list?.contains(document.activeElement);
+            if (list && s.state.revision !== this.setsRevision && !focusedInSets) {
+                this.setsRevision = s.state.revision;
+                this.renderVoiceSets();
             }
+            this.renderPendingList();
             const box = $('voiceConfirmBox');
             if (box) {
                 const needs = novel.length || pending.length;
@@ -428,13 +565,15 @@
             }
             if (s.finalized) this.setHint('保存済み。過去データで確認できます');
             else if (!s.state.names.length && !novel.length) this.setHint('先にメニュー種目を登録してください（setup-menu）');
-            else if (novel.length || pending.length) this.setHint('「確認」で内容をチェックしてから保存');
+            else if (novel.length || pending.length) this.setHint('セットはタップで修正できます。「確認」で新種目をチェック');
+            else if (s.state.sets.length) this.setHint('認識ミスはセット一覧で修正できます');
+            else if (this.starting) this.setHint('マイクを開始しています…');
             else if (recording) this.setHint(this.busy ? '解析中。話し続けてOK' : (this.useNativeCapture ? 'アプリ版：音楽・画面オフでも録音を続けます' : '種目・キロ・回数を話してください'));
             else if (this.ready) this.setHint(globalThis.GymNativeAudio?.available?.()
                 ? '下の「録音を開始」（Spotify同時・バックグラウンド対応）'
                 : '下の「録音を開始」を押してください');
             else this.setHint('接続を待っています…');
-            document.body.dataset.voiceMode = s.finalized ? 'done' : recording ? 'recording' : this.ready ? 'ready' : 'connecting';
+            document.body.dataset.voiceMode = s.finalized ? 'done' : (recording || this.starting) ? 'recording' : this.ready ? 'ready' : 'connecting';
         },
 
         openConfirm() {
@@ -512,9 +651,9 @@
 
         handlePcmMessage(data) {
             if (data.flushed) { this.flushResolve?.(); return; }
-            if (!data.pcm) return;
+            if (!data.pcm || !this.recording || this.stopping) return;
             const limit = this.useNativeCapture ? 20000 : this.gapLimitMs;
-            if (this.recording && Date.now() - this.lastBlock > limit) {
+            if (Date.now() - this.lastBlock > limit) {
                 if (this.useNativeCapture) {
                     this.session.gaps.push({ at: Date.now(), reason: '音声の一時途切れ（継続中）' });
                     this.lastBlock = Date.now();
@@ -532,15 +671,82 @@
             if (this.buffered > 8) void this.stop('録音の保存が追いつきません', true);
         },
 
-        async start() {
-            if (!this.ready || this.recording || this.session.finalized) return;
+        async releaseCapture() {
+            try { await this.pcmListener?.remove(); } catch (_) { /* ignore */ }
+            try { await this.flushListener?.remove(); } catch (_) { /* ignore */ }
+            this.pcmListener = null;
+            this.flushListener = null;
+            try { await globalThis.GymNativeAudio?.stopCapture?.(); } catch (_) { /* ignore */ }
+            try { await globalThis.GymNativeAudio?.teardown?.(); } catch (_) { /* ignore */ }
+            try { this.node?.port?.postMessage?.('flush'); } catch (_) { /* ignore */ }
+            try { this.stream?.getTracks?.().forEach(t => t.stop()); } catch (_) { /* ignore */ }
+            try { this.node?.disconnect?.(); } catch (_) { /* ignore */ }
+            try { this.source?.disconnect?.(); } catch (_) { /* ignore */ }
+            try { this.mute?.disconnect?.(); } catch (_) { /* ignore */ }
+            if (this.ctx) {
+                try { this.ctx.onstatechange = null; } catch (_) { /* ignore */ }
+                await this.ctx.close().catch(() => {});
+            }
+            await this.wake?.release?.().catch(() => {});
+            this.wake = null;
+            this.node = null;
+            this.source = null;
+            this.mute = null;
+            this.stream = null;
+            this.ctx = null;
+            this.useNativeCapture = false;
+            this.flushResolve = null;
+        },
+
+        async openMicStream() {
+            const base = {
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            };
+            const preferred = this.chosenMicConstraint();
             try {
+                return await navigator.mediaDevices.getUserMedia({ audio: { ...base, ...preferred } });
+            } catch (e) {
+                if (!preferred.deviceId) throw e;
+                // Saved DJI/deviceId often goes stale after reconnect; fall back to default mic.
+                localStorage.removeItem(MIC_KEY);
+                if ($('voiceMic')) $('voiceMic').value = '';
+                this.setStatus('指定マイクが使えないため、標準マイクで再開します');
+                return navigator.mediaDevices.getUserMedia({ audio: base });
+            }
+        },
+
+        async start() {
+            if (this.starting || this.stopping) {
+                this.setStatus(this.stopping ? '直前の停止処理中です。少し待って再試行してください' : '開始処理中です');
+                return;
+            }
+            if (!this.ready) {
+                this.setStatus('音声サービス未接続です。再接続を押してください');
+                return;
+            }
+            if (this.recording || this.session?.finalized) return;
+            if (!(this.session.state.names.length + (this.session.state.novelNames || []).length)) {
+                this.setStatus('先にメニュー種目を登録してください');
+                return;
+            }
+
+            this.starting = true;
+            this.render();
+            try {
+                // Clear any leftover graph from a previous interrupted stop/start race.
+                await this.releaseCapture();
                 await this.refreshMics(false);
                 const estimate = await navigator.storage?.estimate?.();
-                if (estimate && estimate.quota - estimate.usage < 190000000) throw Error('空き容量が足りません（約190MB必要）');
+                if (estimate && estimate.quota - estimate.usage < 190000000) {
+                    throw Error('空き容量が足りません（約190MB必要）');
+                }
 
-                this.received = 0; this.lastBlock = Date.now(); this.recording = true;
-                this.activeStart = null; this.continuation = false;
+                this.received = 0;
+                this.activeStart = null;
+                this.continuation = false;
                 this.useNativeCapture = !!globalThis.GymNativeAudio?.available();
                 this.gapLimitMs = this.useNativeCapture ? 20000 : 6000;
 
@@ -561,13 +767,8 @@
                 } else {
                     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
                     await this.ctx.resume();
-                    this.stream = await navigator.mediaDevices.getUserMedia({
-                        audio: {
-                            ...this.chosenMicConstraint(),
-                            channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true
-                        }
-                    });
-                    await this.ctx.audioWorklet.addModule('js/ai-voice-capture.js');
+                    this.stream = await this.openMicStream();
+                    await this.ctx.audioWorklet.addModule(`js/ai-voice-capture.js?v=53`);
                     this.node = new AudioWorkletNode(this.ctx, 'gym-pcm');
                     this.source = this.ctx.createMediaStreamSource(this.stream);
                     this.mute = this.ctx.createGain(); this.mute.gain.value = 0;
@@ -576,22 +777,40 @@
                     if ($('voiceMicActive')) $('voiceMicActive').textContent = '使用中：' + label;
                     this.node.port.onmessage = ({ data }) => this.handlePcmMessage(data);
                     for (const t of this.stream.getAudioTracks()) {
-                        t.addEventListener('ended', () => { if (this.recording) void this.stop('マイクが切れました', true); });
-                        t.addEventListener('mute', () => { if (this.recording) void this.stop('マイク入力が中断されました', true); });
+                        t.addEventListener('ended', () => {
+                            if (this.recording && !this.stopping) void this.stop('マイクが切れました', true);
+                        });
+                        // iOS Safari fires spurious "mute" during start/route changes — do not hard-stop.
                     }
                     this.ctx.onstatechange = () => {
-                        if (this.recording && this.ctx.state !== 'running') void this.stop('iPhoneが録音を停止しました', true);
+                        if (!this.recording || this.stopping || !this.ctx) return;
+                        if (this.ctx.state === 'interrupted' || this.ctx.state === 'closed') {
+                            void this.stop('iPhoneが録音を停止しました', true);
+                        }
                     };
                 }
 
                 if (navigator.wakeLock) {
                     try { this.wake = await navigator.wakeLock.request('screen'); } catch (_) { /* optional */ }
                 }
+
+                // Arm recording only after the capture pipeline is live.
+                this.lastBlock = Date.now();
+                this.captureStartedAt = Date.now();
+                this.recording = true;
                 await this.persist();
                 this.setStatus(this.useNativeCapture ? '録音中（アプリ・音楽同時OK）' : '録音中');
-                this.render();
             } catch (e) {
-                await this.stop(e.message || 'マイクを開始できません', true);
+                this.recording = false;
+                await this.releaseCapture();
+                const msg = e?.message || 'マイクを開始できません';
+                this.session.interrupted = true;
+                this.session.gaps.push({ at: Date.now(), reason: msg });
+                await this.persist().catch(() => {});
+                this.setStatus(msg);
+            } finally {
+                this.starting = false;
+                this.render();
             }
         },
 
@@ -630,49 +849,56 @@
         async stop(reason = '録音を止めました', gap = false) {
             if (this.stopping) return;
             this.stopping = true;
-            const was = this.recording;
+            const was = this.recording || this.starting;
             const usedNative = this.useNativeCapture;
             this.recording = false;
-            if (gap) {
-                this.session.interrupted = true;
-                this.session.gaps.push({ at: Date.now(), reason });
-            }
-            if (usedNative && was) {
-                let flushed = false;
-                const flushWait = new Promise(resolve => {
-                    this.flushResolve = () => { flushed = true; resolve(); };
-                });
-                await GymNativeAudio.stopCapture();
+            this.starting = false;
+            try {
+                if (gap && this.session) {
+                    this.session.interrupted = true;
+                    this.session.gaps.push({ at: Date.now(), reason });
+                }
+                if (usedNative && was) {
+                    let flushed = false;
+                    const flushWait = new Promise(resolve => {
+                        this.flushResolve = () => { flushed = true; resolve(); };
+                    });
+                    await GymNativeAudio.stopCapture();
+                    await Promise.race([
+                        flushWait,
+                        new Promise(resolve => setTimeout(resolve, 1500))
+                    ]);
+                    if (!flushed && this.session) {
+                        this.session.gaps.push({ at: Date.now(), reason: '末尾を取得できませんでした' });
+                    }
+                } else if (this.node && was) {
+                    let flushed = false;
+                    await Promise.race([
+                        new Promise(resolve => {
+                            this.flushResolve = () => { flushed = true; resolve(); };
+                            try { this.node.port.postMessage('flush'); } catch (_) { resolve(); }
+                        }),
+                        new Promise(resolve => setTimeout(resolve, 1500))
+                    ]);
+                    if (!flushed && this.session) {
+                        this.session.gaps.push({ at: Date.now(), reason: '末尾を取得できませんでした' });
+                    }
+                }
+                await this.releaseCapture();
                 await Promise.race([
-                    flushWait,
-                    new Promise(resolve => setTimeout(resolve, 1500))
+                    this.writes.catch(() => {}),
+                    new Promise(resolve => setTimeout(resolve, 3000))
                 ]);
-                if (!flushed) this.session.gaps.push({ at: Date.now(), reason: '末尾を取得できませんでした' });
-                try { await this.pcmListener?.remove(); } catch (_) { /* ignore */ }
-                try { await this.flushListener?.remove(); } catch (_) { /* ignore */ }
-                this.pcmListener = null;
-                this.flushListener = null;
-                await GymNativeAudio.teardown();
-            } else if (this.node && was) {
-                let flushed = false;
-                await Promise.race([
-                    new Promise(resolve => { this.flushResolve = () => { flushed = true; resolve(); }; this.node.port.postMessage('flush'); }),
-                    new Promise(resolve => setTimeout(resolve, 1500))
-                ]);
-                if (!flushed) this.session.gaps.push({ at: Date.now(), reason: '末尾を取得できませんでした' });
+                this.writes = Promise.resolve();
+                if (this.activeStart !== null) await this.makeJob(this.blockNo - 1, gap).catch(() => {});
+                await this.persist().catch(() => {});
+                this.setStatus(reason);
+            } finally {
+                this.stopping = false;
+                this.starting = false;
+                this.recording = false;
+                this.render();
             }
-            this.stream?.getTracks().forEach(t => t.stop());
-            this.node?.disconnect(); this.source?.disconnect(); this.mute?.disconnect();
-            await this.ctx?.close().catch(() => {});
-            await this.wake?.release().catch(() => {});
-            this.wake = null; this.node = null; this.stream = null; this.ctx = null;
-            this.useNativeCapture = false;
-            await this.writes.catch(() => {});
-            if (this.activeStart !== null) await this.makeJob(this.blockNo - 1, gap).catch(() => {});
-            await this.persist().catch(() => {});
-            this.setStatus(reason);
-            this.stopping = false;
-            this.render();
         },
 
         async api(path, body) {
@@ -830,13 +1056,17 @@
         tick() {
             if (!this.session) return;
             this.render();
-            const limit = this.useNativeCapture ? 45000 : 6000;
-            if (this.recording && Date.now() - this.lastBlock > limit) {
+            // Grace period: first worklet block can take ~1s, and iOS mic permission
+            // must not trip the gap watchdog while start() is still opening the mic.
+            const armedFor = this.captureStartedAt ? Date.now() - this.captureStartedAt : 0;
+            const limit = this.useNativeCapture ? 45000 : 8000;
+            if (this.recording && !this.starting && !this.stopping && armedFor > 10000
+                && Date.now() - this.lastBlock > limit) {
                 if (this.useNativeCapture) {
                     this.session.gaps.push({ at: Date.now(), reason: '長時間の音声空白（継続中）' });
                     this.lastBlock = Date.now();
                 } else {
-                    void this.stop('音声が届かなくなりました', true);
+                    void this.stop('音声が届かなくなりました。下の「録音を開始」でもう一度試してください', true);
                 }
             }
             void this.pump();
