@@ -433,7 +433,7 @@ class GymApp {
         const sync = globalThis.VoiceFormSync;
         if (!sync) return;
 
-        // Keep other exercises' in-progress typing before voice rewrite/re-render.
+        // Keep other exercises' in-progress typing before voice rewrite.
         this.mergeActiveScreenIntoDraft();
 
         const confirmed = sets.filter(s => !s.novel);
@@ -446,6 +446,7 @@ class GymApp {
         const dayIndex = this.currentDayIndex;
         const draft = storage.getDraft(dayIndex) || {};
         const activated = [];
+        let needsFullRender = false;
 
         for (const [name, group] of Object.entries(byName)) {
             let exercise = sync.findMenuExercise(storage.getExercisesForDay(dayIndex), name);
@@ -457,18 +458,26 @@ class GymApp {
                     perSetWeight: true
                 });
                 exercise = sync.findMenuExercise(storage.getExercisesForDay(dayIndex), name);
+                needsFullRender = true;
             } else {
                 const existingDraft = draft[name];
                 const nextCount = sync.desiredSetCount(exercise, group, existingDraft);
-                const updates = { perSetWeight: true };
+                const updates = {};
+                if (!exercise.perSetWeight) {
+                    updates.perSetWeight = true;
+                    needsFullRender = true;
+                }
                 if (nextCount > (parseInt(exercise.sets, 10) || 1)) {
                     updates.sets = String(nextCount);
+                    needsFullRender = true;
                 }
-                storage.updateExercise(dayIndex, exercise.id, updates);
-                exercise = sync.findMenuExercise(storage.getExercisesForDay(dayIndex), name) || {
-                    ...exercise,
-                    ...updates
-                };
+                if (Object.keys(updates).length) {
+                    storage.updateExercise(dayIndex, exercise.id, updates);
+                    exercise = sync.findMenuExercise(storage.getExercisesForDay(dayIndex), name) || {
+                        ...exercise,
+                        ...updates
+                    };
+                }
             }
 
             const rowCount = sync.desiredSetCount(exercise, group, draft[name]);
@@ -477,9 +486,41 @@ class GymApp {
         }
 
         storage.saveDraft(dayIndex, draft);
-        this.renderExerciseList(dayIndex);
+
+        if (needsFullRender || !document.querySelector('#exerciseList .exercise-record')) {
+            this.renderExerciseList(dayIndex);
+        } else {
+            for (const name of activated) this.fillVariantInputsFromDraft(name, draft[name]);
+        }
         for (const name of activated) this.activateExerciseVariant(name);
-        this.autoSaveRecord();
+        // Do not autoSaveRecord here: it strips voiceSessionId and blocked later voice syncs.
+        // Draft + VoiceHistory.sync own persistence during a live voice session.
+    }
+
+    fillVariantInputsFromDraft(name, values) {
+        if (!values) return;
+        document.querySelectorAll('#exerciseList .exercise-variant').forEach(variantEl => {
+            if (variantEl.dataset.variantName !== name) return;
+            const rows = [...variantEl.querySelectorAll('.set-input-row')];
+            const draftSets = Array.isArray(values.sets) ? values.sets : [];
+            rows.forEach((row, i) => {
+                const entry = draftSets[i];
+                const reps = entry && typeof entry === 'object' ? entry.reps : entry;
+                const weight = entry && typeof entry === 'object' ? entry.weight : values.weight;
+                const repsInput = row.querySelector('.reps-input');
+                const weightInput = row.querySelector('.set-weight-input');
+                if (repsInput && reps !== undefined && reps !== null && reps !== '') {
+                    repsInput.value = String(reps);
+                }
+                if (weightInput && weight !== undefined && weight !== null && weight !== '') {
+                    weightInput.value = String(weight);
+                }
+            });
+            const sharedWeight = variantEl.querySelector('.weight-input');
+            if (sharedWeight && values.weight !== undefined && values.weight !== '') {
+                sharedWeight.value = String(values.weight);
+            }
+        });
     }
 
     // 記録日を「今日／昨日／一昨日」から選び直す（日付をまたいでのトレーニングや、記録し忘れた過去分の入力用）。

@@ -960,14 +960,20 @@
                 }));
                 const packet = await this.processed('/analyze', form);
                 if (packet.id !== job.id) throw Error('処理IDが一致しません');
+                let applied = false;
                 this.writes = this.writes.then(async () => {
                     const next = { ...this.session, state: AIVoiceModel.apply(this.session.state, { ...packet, at: job.at, boundary: job.boundary }) };
                     const done = { ...job, status: 'done', text: packet.text, completedAt: Date.now() };
                     await this.db.complete(next, done);
                     this.session = next;
                     Object.assign(job, done);
-                    this.syncHistory();
-                    await this.persist();
+                    applied = true;
+                    try {
+                        this.syncHistory();
+                    } catch (e) {
+                        this.session.historyError = e.message;
+                    }
+                    await this.persist().catch(() => {});
                 });
                 await this.writes;
                 if ($('voiceHeard')) {
@@ -979,9 +985,11 @@
                     $('voiceReply').dataset.last = $('voiceReply').textContent;
                 }
                 this.failures = 0;
-                this.emitSets();
+                if (applied) this.emitSets();
             } catch (e) {
                 this.writes = this.writes.catch(() => {});
+                // Session may already include the new sets even when a later step failed.
+                this.emitSets();
                 this.failures++;
                 this.retryAt = Date.now() + Math.min(60000, 2000 * 2 ** Math.min(this.failures, 5));
                 if (e.status === 401) {

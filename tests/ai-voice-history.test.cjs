@@ -21,5 +21,20 @@ test('external edits are not overwritten and a crash between history and checkpo
  s.state.sets[0].reps=6;sync(store,s);previous.state.sets[0].reps=6;sync(store,previous);
  const changed=store.read();changed['2026-09-11'][5].bench.sets[0].reps='9';store.setItem('gym_records',JSON.stringify(changed));
  assert.throws(()=>sync(store,s),/上書きを停止/);assert.equal(store.read()['2026-09-11'][5].bench.sets[0].reps,'9');
- store.setItem('gym_records','{}');assert.throws(()=>sync(store,s),/上書きを停止/);assert.deepEqual(store.read(),{});
+ // Empty history (or autosave wipe) is recoverable — re-apply this session's sets.
+ store.setItem('gym_records','{}');sync(store,s);
+ assert.equal(store.read()['2026-09-11'][5].bench.sets[0].reps,'6');
+ assert.equal(store.read()['2026-09-11'][5].bench.sets[0].voiceSessionId,'voice');
+});
+test('training autosave that strips voiceSessionId is recoverable',()=>{
+ const store=fixture(),s=session();sync(store,s);
+ store.setItem('gym_records',JSON.stringify({'2026-09-11':{5:{bench:{perSetWeight:true,sets:[{weight:'70',reps:'8'}],setCount:1}}}}));
+ s.state.sets.push({id:'voice:2',name:'bench',weight:75,reps:7});
+ sync(store,s);
+ const sets=store.read()['2026-09-11'][5].bench.sets;
+ assert.equal(sets.length,2);
+ assert.equal(sets[0].reps,'8');
+ assert.equal(sets[1].reps,'7');
+ assert.equal(sets[0].voiceSessionId,'voice');
+ assert.equal(sets[1].voiceSessionId,'voice');
 });

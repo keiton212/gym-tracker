@@ -15,8 +15,17 @@
         const wanted = JSON.stringify(session.state.sets.filter(x => !x.novel).map(x => [x.name,x.id,String(x.weight),String(x.reps)]).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
         // The desired signature also accepts a retry after a successful localStorage
         // write whose following IndexedDB checkpoint was interrupted.
+        // observed === '[]' means training-screen autosave (or finish) rewrote the day
+        // without voiceSessionId markers — recover by re-applying this session's sets.
+        const recoveringAutosaveClobber = !remove && session.historySignature !== undefined && observed === '[]';
         if (!remove && session.historySignature !== undefined && observed !== session.historySignature && observed !== wanted) {
-            throw Error('この音声記録の履歴が別画面で編集・削除されています。上書きを停止しました');
+            if (!recoveringAutosaveClobber) throw Error('この音声記録の履歴が別画面で編集・削除されています。上書きを停止しました');
+        }
+        if (recoveringAutosaveClobber) {
+            // Drop untagged autosave rows for names this voice session owns, so they are not duplicated.
+            for (const set of session.state.sets) {
+                if (!set.novel) delete exercises[set.name];
+            }
         }
         for (const name of Object.keys(exercises)) {
             const record = exercises[name];
