@@ -30,62 +30,70 @@
         }
 
         function setupMenu() {
+            const lyingSeed = { weight: '30', perSetWeight: false, sets: ['11', '12', '10'] };
+            const tueBenchSeed = {
+                weight: '90',
+                perSetWeight: true,
+                sets: [
+                    { weight: '90', reps: '1' },
+                    { weight: '77.5', reps: '5' },
+                    { weight: '77.5', reps: '4' }
+                ]
+            };
+
             const menu = {
                 0: { label: '日曜日', status: '休み', exercises: [] },
                 1: { label: '月曜日', status: 'Pull B', exercises: [
-                    ex(101, 'チェストサポートロー', 4),
-                    ex(102, 'DYロー', 4, { restMinutes: 3 }),
-                    ex(103, '懸垂', 3, { restMinutes: 3 }),
+                    ex(101, 'チェストサポートロー', 4, { weight: '66' }),
+                    ex(102, 'DYロー', 4, { restMinutes: 3, weight: '30' }),
                     ex(104, 'ナローラットプルダウン', 2),
-                    ex(105, 'アイソラテラルロー', 2),
-                    ex(106, 'リアデルトフライ', 2, { restMinutes: 1.5 }),
-                    ex(107, 'バーベルカール', 2),
+                    ex(106, 'リアデルトフライ', 2, { restMinutes: 1.5, weight: '54' }),
+                    ex(107, 'バーベルカール', 2, { weight: '35' }),
                     ex(108, 'プリーチャーカール', 3, { restMinutes: 1.5 }),
-                    ex(109, 'レッグエクステンション', 2, { restMinutes: 1.5 }),
-                    ex(110, 'レッグカール', 2)
+                    ex(109, 'レッグエクステンション', 2, { restMinutes: 1.5, weight: '82', perSetWeight: true }),
+                    ex(110, 'レッグカール', 2, { weight: '46' })
                 ]},
                 2: { label: '火曜日', status: 'Push A', exercises: [
-                    ex(201, 'ベンチプレス', 3, { restMinutes: 3, perSetWeight: true }),
-                    ex(202, 'インクラインダンベルプレス', 3, { restMinutes: 3, weightStep: 2 }),
+                    ex(201, 'ベンチプレス', 3, { restMinutes: 3, weight: '90', perSetWeight: true, seedBest: tueBenchSeed }),
+                    ex(202, 'インクラインダンベルプレス', 3, { restMinutes: 3, weight: '32', weightStep: 2, perSetWeight: true }),
                     ex(203, 'ディップス', 2, { restMinutes: 2.5, perSetWeight: true }),
-                    ex(204, 'マシンショルダープレス', 2, { weightStep: 1.25 }),
-                    ex(205, 'サイドレイズ', 3, { restMinutes: 1, weightStep: 1 }),
-                    ex(206, 'マシンサイドレイズ', 3, { restMinutes: 1.5, weightStep: 1.25 }),
-                    ex(207, 'ライイングエクステンション', 3, { restMinutes: 1.5 }),
-                    ex(208, 'ケーブルプレスダウン', 2, { restMinutes: 1.5, perSetWeight: true }),
-                    ex(209, 'ペックフライ', 2, { restMinutes: 1.5, weightStep: 2 })
+                    ex(204, 'マシンショルダープレス', 2, { weight: '30', weightStep: 1.25 }),
+                    ex(205, 'サイドレイズ', 3, { restMinutes: 1, weight: '12', weightStep: 1 }),
+                    ex(206, 'マシンサイドレイズ', 3, { restMinutes: 1.5, weight: '10', weightStep: 1.25 }),
+                    ex(207, 'ライイングエクステンション', 3, { restMinutes: 1.5, weight: '30', seedBest: { weight: '30', perSetWeight: false, sets: ['11', '12', '10'] } }),
+                    ex(208, 'ケーブルプレスダウン', 2, { restMinutes: 1.5, weight: '31' }),
+                    ex(209, 'ペックフライ', 2, { restMinutes: 1.5, weight: '59', weightStep: 2, perSetWeight: true })
                 ]},
                 3: { label: '水曜日', status: 'Leg', exercises: [
-                    ex(301, 'ベンチプレス', 3, { restMinutes: 3, perSetWeight: true }),
-                    ex(302, 'スクワット', 2, { restMinutes: 3 }),
-                    ex(303, 'ルーマニアンデッドリフト', 2, { restMinutes: 3 }),
-                    ex(304, 'ハックスクワット', 2, { restMinutes: 3 }),
-                    ex(305, 'レッグエクステンション', 3, { restMinutes: 1.5, perSetWeight: true }),
-                    ex(306, 'レッグカール', 3),
-                    ex(307, 'ライイングエクステンション', 2, { restMinutes: 1.5 }),
-                    ex(308, 'インクラインダンベルカール', 2, { restMinutes: 1.5, weightStep: 2 }),
+                    ex(301, 'ベンチプレス', 3, { restMinutes: 3, weight: '90', perSetWeight: true }),
+                    ex(302, 'スクワット', 2, { restMinutes: 3, weight: '100', perSetWeight: true }),
+                    ex(303, 'ルーマニアンデッドリフト', 2, { restMinutes: 3, weight: '120' }),
+                    ex(304, 'ハックスクワット', 2, { restMinutes: 3, weight: '30' }),
+                    ex(305, 'レッグエクステンション', 3, { restMinutes: 1.5, weight: '82', perSetWeight: true }),
+                    ex(306, 'レッグカール', 3, { weight: '46' }),
+                    ex(307, 'ライイングエクステンション', 2, { restMinutes: 1.5, weight: '30', seedBest: { weight: '30', perSetWeight: false, sets: ['11', '12'] } }),
+                    ex(308, 'インクラインダンベルカール', 2, { restMinutes: 1.5, weight: '12', weightStep: 2 }),
                     ex(309, 'ケーブルクランチ', 3, { restMinutes: 1.5 }),
                     ex(310, 'ハンギングレッグレイズ', 3, { restMinutes: 1.5 })
                 ]},
                 4: { label: '木曜日', status: '休み', exercises: [] },
                 5: { label: '金曜日', status: 'Pull A', exercises: [
-                    ex(501, 'ラットプルダウン', 3),
-                    ex(502, '懸垂', 3, { restMinutes: 3 }),
-                    ex(503, 'チェストサポートロー', 3),
-                    ex(504, 'ケーブルロー', 2),
-                    ex(505, 'リアデルトフライ', 2, { restMinutes: 1.5 }),
-                    ex(506, 'バーベルカール', 3),
+                    ex(501, 'ラットプルダウン', 3, { weight: '66' }),
+                    ex(503, 'チェストサポートロー', 3, { weight: '66' }),
+                    ex(504, 'ケーブルロー', 2, { weight: '135', perSetWeight: true }),
+                    ex(505, 'リアデルトフライ', 2, { restMinutes: 1.5, weight: '54' }),
+                    ex(506, 'バーベルカール', 3, { weight: '35' }),
                     ex(507, 'プリーチャーカール', 2, { restMinutes: 1.5 })
                 ]},
                 6: { label: '土曜日', status: 'Push B', exercises: [
-                    ex(601, 'ダンベルショルダープレス', 3, { restMinutes: 3, weightStep: 2 }),
-                    ex(602, 'ベンチプレス', 3, { restMinutes: 3, perSetWeight: true }),
-                    ex(603, 'インクラインダンベルプレス', 2, { restMinutes: 3, weightStep: 2 }),
-                    ex(604, 'サイドレイズ', 4, { restMinutes: 1, weightStep: 1 }),
-                    ex(605, 'マシンサイドレイズ', 3, { restMinutes: 1.5, weightStep: 1.25 }),
-                    ex(606, 'ペックフライ', 2, { restMinutes: 1.5, weightStep: 2 }),
-                    ex(607, 'ライイングエクステンション', 3, { restMinutes: 1.5 }),
-                    ex(608, 'オーバーヘッドエクステンション', 3, { restMinutes: 1.5, perSetWeight: true })
+                    ex(601, 'ダンベルショルダープレス', 3, { restMinutes: 3, weight: '30', weightStep: 2, perSetWeight: true }),
+                    ex(602, 'ベンチプレス', 3, { restMinutes: 3, weight: '90', perSetWeight: true }),
+                    ex(603, 'インクラインダンベルプレス', 2, { restMinutes: 3, weight: '32', weightStep: 2, perSetWeight: true }),
+                    ex(604, 'サイドレイズ', 4, { restMinutes: 1, weight: '12', weightStep: 1 }),
+                    ex(605, 'マシンサイドレイズ', 3, { restMinutes: 1.5, weight: '10', weightStep: 1.25 }),
+                    ex(606, 'ペックフライ', 2, { restMinutes: 1.5, weight: '59', weightStep: 2, perSetWeight: true }),
+                    ex(607, 'ライイングエクステンション', 3, { restMinutes: 1.5, weight: '30', seedBest: lyingSeed }),
+                    ex(608, 'オーバーヘッドエクステンション', 3, { restMinutes: 1.5, weight: '30', perSetWeight: true })
                 ]}
             };
 
@@ -100,7 +108,8 @@
                 'gym_migration_draft_recovery_v7',
                 'gym_migration_ppl_zoryoki_v8',
                 'gym_migration_ppl_complete_v9',
-                'gym_migration_best_carry_v10'
+                'gym_migration_best_carry_v10',
+                'gym_migration_menu_tune_v11'
             ].forEach(flag => localStorage.setItem(flag, '1'));
 
             document.getElementById('status').textContent = '✅ メニューを登録しました！index.htmlを開いてください。';

@@ -24,8 +24,21 @@ function extractLastWeightFromSetEntry(entry) {
     return '';
 }
 
+// ユーザー指定の基準（seedBest）があればそれを優先し、無ければ過去最高を使う
+function resolveBestRecord(exercise) {
+    if (exercise?.seedBest && Array.isArray(exercise.seedBest.sets) && exercise.seedBest.sets.length > 0) {
+        return {
+            perSetWeight: !!exercise.seedBest.perSetWeight || !!exercise.perSetWeight,
+            sets: exercise.seedBest.sets,
+            weight: exercise.seedBest.weight ?? exercise.weight ?? '',
+            setCount: exercise.seedBest.sets.length
+        };
+    }
+    return storage.getBestSets(exercise.name, currentSessionDateStr());
+}
+
 function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
-    const bestRecord = storage.getBestSets(exercise.name, currentSessionDateStr());
+    const bestRecord = resolveBestRecord(exercise);
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const suggestedReps = parseRepsRangeLower(exercise.repsRange);
 
@@ -53,7 +66,7 @@ function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
 }
 
 function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
-    const bestRecord = storage.getBestSets(exercise.name, currentSessionDateStr());
+    const bestRecord = resolveBestRecord(exercise);
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const step = exercise.weightStep ?? 2.5;
     const suggestedReps = parseRepsRangeLower(exercise.repsRange);

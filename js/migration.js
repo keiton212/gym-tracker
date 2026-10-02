@@ -16,7 +16,8 @@
         'gym_migration_draft_recovery_v7',
         'gym_migration_ppl_zoryoki_v8',
         'gym_migration_ppl_complete_v9',
-        'gym_migration_best_carry_v10'
+        'gym_migration_best_carry_v10',
+        'gym_migration_menu_tune_v11'
     ].forEach(flag => {
         if (!localStorage.getItem(flag)) localStorage.setItem(flag, '1');
     });
@@ -583,9 +584,7 @@
                 exercises: [
                     ex('チェストサポートロー', { sets: '4', restMinutes: 2 }),
                     ex('DYロー', { sets: '4', restMinutes: 3 }),
-                    ex('懸垂', { sets: '3', restMinutes: 3 }),
                     ex('ナローラットプルダウン', { sets: '2', restMinutes: 2 }),
-                    ex('アイソラテラルロー', { sets: '2', restMinutes: 2 }),
                     ex('リアデルトフライ', { sets: '2', restMinutes: 1.5 }),
                     ex('バーベルカール', { sets: '2', restMinutes: 2 }),
                     ex('プリーチャーカール', { sets: '3', restMinutes: 1.5 }),
@@ -627,7 +626,6 @@
                 label: '金曜日', status: 'Pull A',
                 exercises: [
                     ex('ラットプルダウン', { sets: '3', restMinutes: 2 }),
-                    ex('懸垂', { sets: '3', restMinutes: 3 }),
                     ex('チェストサポートロー', { sets: '3', restMinutes: 2 }),
                     ex('ケーブルロー', { sets: '2', restMinutes: 2 }),
                     ex('リアデルトフライ', { sets: '2', restMinutes: 1.5 }),
@@ -733,5 +731,115 @@
         localStorage.setItem(FLAG10, '1');
     } catch (e) {
         console.error('Migration v10 failed:', e);
+    }
+})();
+
+// ユーザー指定のメニュー調整＋記録の「最新の中身があるセッション」から重量を反映。
+(function () {
+    const FLAG11 = 'gym_migration_menu_tune_v11';
+    if (localStorage.getItem(FLAG11)) return;
+
+    try {
+        const REMOVE_NAMES = new Set(['懸垂', 'アイソラテラルロー', '加重懸垂']);
+
+        function sessionHasContent(data) {
+            if (!data) return false;
+            if (data.weight !== '' && data.weight != null) return true;
+            return (data.sets || []).some(entry => {
+                if (entry == null || entry === '') return false;
+                if (typeof entry === 'object') {
+                    return (entry.reps !== '' && entry.reps != null) || (entry.weight !== '' && entry.weight != null);
+                }
+                return true;
+            });
+        }
+
+        function latestFilledRecord(exerciseName) {
+            const records = storage.getRecords();
+            const names = new Set(typeof exerciseLookupNames === 'function'
+                ? exerciseLookupNames(exerciseName)
+                : [exerciseName]);
+            const dates = Object.keys(records).sort().reverse();
+            for (const dateStr of dates) {
+                const dayEntries = records[dateStr];
+                for (const dayIndex of Object.keys(dayEntries)) {
+                    for (const name of names) {
+                        const data = dayEntries[dayIndex][name];
+                        if (sessionHasContent(data)) return data;
+                    }
+                }
+            }
+            return null;
+        }
+
+        function weightFromRecord(data) {
+            if (!data) return '';
+            if (data.perSetWeight) {
+                const found = (data.sets || []).map(s => s?.weight).find(w => w !== '' && w != null);
+                return found != null ? String(found) : '';
+            }
+            return data.weight != null ? String(data.weight) : '';
+        }
+
+        const lyingSeed = {
+            weight: '30',
+            perSetWeight: false,
+            sets: ['11', '12', '10']
+        };
+        const tueBenchSeed = {
+            weight: '90',
+            perSetWeight: true,
+            sets: [
+                { weight: '90', reps: '1' },
+                { weight: '77.5', reps: '5' },
+                { weight: '77.5', reps: '4' }
+            ]
+        };
+
+        const menu = storage.getMenu();
+        for (let day = 0; day < 7; day++) {
+            if (!menu[day]) continue;
+            menu[day].exercises = (menu[day].exercises || []).filter(ex => !REMOVE_NAMES.has(ex.name));
+
+            menu[day].exercises.forEach(ex => {
+                if (!ex?.name) return;
+
+                if (ex.name === 'チェストサポートロー') {
+                    ex.weight = '66';
+                }
+
+                if (ex.name === 'ライイングエクステンション') {
+                    ex.weight = '30';
+                    ex.perSetWeight = false;
+                    const setCount = Math.max(1, parseInt(ex.sets) || 3);
+                    ex.seedBest = {
+                        weight: '30',
+                        perSetWeight: false,
+                        sets: lyingSeed.sets.slice(0, setCount)
+                    };
+                    return;
+                }
+
+                if (day === 2 && ex.name === 'ベンチプレス') {
+                    ex.perSetWeight = true;
+                    ex.sets = '3';
+                    ex.weight = '90';
+                    ex.seedBest = tueBenchSeed;
+                    return;
+                }
+
+                const latest = latestFilledRecord(ex.name);
+                if (!latest) return;
+                const w = weightFromRecord(latest);
+                if (w !== '') ex.weight = w;
+                if (latest.perSetWeight) ex.perSetWeight = true;
+            });
+        }
+
+        storage.setMenu(menu);
+        localStorage.removeItem(STORAGE_KEYS.FOCUS_PROGRESS);
+        localStorage.setItem(FLAG11, '1');
+    } catch (e) {
+        console.error('Migration v11 failed:', e);
     }
 })();
