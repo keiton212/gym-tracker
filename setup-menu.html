@@ -16,62 +16,92 @@
     <p id="status"></p>
 
     <script>
+        function ex(id, name, sets, extra) {
+            return Object.assign({
+                id: String(id),
+                name,
+                weight: '',
+                sets: String(sets),
+                repsRange: '',
+                restMinutes: 2,
+                perSetWeight: false,
+                weightStep: 2.5
+            }, extra || {});
+        }
+
         function setupMenu() {
             const menu = {
                 0: { label: '日曜日', status: '休み', exercises: [] },
-                1: { label: '月曜日', status: '胸メイン', exercises: [
-                    { id: '1', name: 'ベンチプレス', weight: '70', sets: '3', repsRange: '5-8' },
-                    { id: '2', name: 'インクラインダンベルプレス', weight: '28', sets: '3', repsRange: '6-10' },
-                    { id: '3', name: 'ディップス', weight: '9', sets: '3', repsRange: '8-12' },
-                    { id: '4', name: 'ショルダープレスマシン', weight: '25', sets: '4', repsRange: '8-12' },
-                    { id: '5', name: 'インクラインスミス', weight: '35', sets: '2', repsRange: '12-15' },
-                    { id: '6', name: 'ケーブルサイドレイズ', weight: '-', sets: '3', repsRange: '12-20' },
-                    { id: '7', name: 'マシンサイド', weight: '12', sets: '3', repsRange: '12-20' },
-                    { id: '8', name: 'ライイングトライセプスエクステンション', weight: '-', sets: '3', repsRange: '10-15' }
+                1: { label: '月曜日', status: 'Pull B', exercises: [
+                    ex(101, 'チェストサポートロー', 4),
+                    ex(102, 'DYロー', 4, { restMinutes: 3 }),
+                    ex(103, '懸垂', 3, { restMinutes: 3 }),
+                    ex(104, 'ナローラットプルダウン', 2),
+                    ex(105, 'アイソラテラルロー', 2),
+                    ex(106, 'リアデルトフライ', 2, { restMinutes: 1.5 }),
+                    ex(107, 'バーベルカール', 2),
+                    ex(108, 'プリーチャーカール', 3, { restMinutes: 1.5 }),
+                    ex(109, 'レッグエクステンション', 2, { restMinutes: 1.5 }),
+                    ex(110, 'レッグカール', 2)
                 ]},
-                2: { label: '火曜日', status: '広がりメイン', exercises: [
-                    { id: '21', name: '懸垂', weight: '-', sets: '4', repsRange: '6-10' },
-                    { id: '22', name: 'ラットプルダウン ミドルパラレル', weight: '66', sets: '3', repsRange: '8-12' },
-                    { id: '23', name: '片手ラットプル', weight: '24', sets: '2', repsRange: '10-15' },
-                    { id: '24', name: 'アイソラテラルロー', weight: '80', sets: '3', repsRange: '8-12' },
-                    { id: '25', name: 'ローロー', weight: '63', sets: '1', repsRange: '-' },
-                    { id: '26', name: 'バーベルカール', weight: '-', sets: '3', repsRange: '12-15' },
-                    { id: '27', name: 'フェイスプル', weight: '-', sets: '2', repsRange: '15-20' },
-                    { id: '28', name: 'ケーブルプルオーバー', weight: '-', sets: '3', repsRange: '15-20' }
+                2: { label: '火曜日', status: 'Push A', exercises: [
+                    ex(201, 'ベンチプレス', 3, { restMinutes: 3, perSetWeight: true }),
+                    ex(202, 'インクラインダンベルプレス', 3, { restMinutes: 3, weightStep: 2 }),
+                    ex(203, 'ディップス', 2, { restMinutes: 2.5, perSetWeight: true }),
+                    ex(204, 'マシンショルダープレス', 2, { weightStep: 1.25 }),
+                    ex(205, 'サイドレイズ', 3, { restMinutes: 1, weightStep: 1 }),
+                    ex(206, 'マシンサイドレイズ', 3, { restMinutes: 1.5, weightStep: 1.25 }),
+                    ex(207, 'ライイングエクステンション', 3, { restMinutes: 1.5 }),
+                    ex(208, 'ケーブルプレスダウン', 2, { restMinutes: 1.5, perSetWeight: true }),
+                    ex(209, 'ペックフライ', 2, { restMinutes: 1.5, weightStep: 2 })
                 ]},
-                3: { label: '水曜日', status: '脚＋腹筋', exercises: [
-                    { id: '31', name: 'スクワット', weight: '92.5', sets: '3', repsRange: '5-8' },
-                    { id: '32', name: 'ルーマニアンデッドリフト', weight: '-', sets: '3', repsRange: '6-10' },
-                    { id: '33', name: 'レッグカール', weight: '46', sets: '3', repsRange: '10-15' },
-                    { id: '34', name: 'レッグエクステンション', weight: '84', sets: '2', repsRange: '12-15' },
-                    { id: '35', name: 'ケーブルクランチ', weight: '-', sets: '3', repsRange: '10-15' },
-                    { id: '36', name: 'ハンギングレッグレイズ', weight: '-', sets: '3', repsRange: '10-15' }
+                3: { label: '水曜日', status: 'Leg', exercises: [
+                    ex(301, 'ベンチプレス', 3, { restMinutes: 3, perSetWeight: true }),
+                    ex(302, 'スクワット', 2, { restMinutes: 3 }),
+                    ex(303, 'ルーマニアンデッドリフト', 2, { restMinutes: 3 }),
+                    ex(304, 'ハックスクワット', 2, { restMinutes: 3 }),
+                    ex(305, 'レッグエクステンション', 3, { restMinutes: 1.5, perSetWeight: true }),
+                    ex(306, 'レッグカール', 3),
+                    ex(307, 'ライイングエクステンション', 2, { restMinutes: 1.5 }),
+                    ex(308, 'インクラインダンベルカール', 2, { restMinutes: 1.5, weightStep: 2 }),
+                    ex(309, 'ケーブルクランチ', 3, { restMinutes: 1.5 }),
+                    ex(310, 'ハンギングレッグレイズ', 3, { restMinutes: 1.5 })
                 ]},
                 4: { label: '木曜日', status: '休み', exercises: [] },
-                5: { label: '金曜日', status: '肩メイン', exercises: [
-                    { id: '51', name: 'ダンベルショルダープレス', weight: '26', sets: '3', repsRange: '5-8' },
-                    { id: '52', name: 'ベンチプレス', weight: '67.5', sets: '2', repsRange: '6' },
-                    { id: '53', name: 'マシンサイド', weight: '11', sets: '1', repsRange: '12-20' },
-                    { id: '54', name: 'ダンベルサイドレイズ', weight: '10', sets: '3', repsRange: '12-20' },
-                    { id: '55', name: 'ケーブルサイドレイズ', weight: '11', sets: '4', repsRange: '12-20' },
-                    { id: '56', name: 'インクラインダンベルプレス', weight: '-', sets: '3', repsRange: '8-12' },
-                    { id: '57', name: 'インクラインスミス', weight: '35', sets: '1', repsRange: '12-20' },
-                    { id: '59', name: 'ライイングトライセプスエクステンション', weight: '-', sets: '3', repsRange: '8-12' },
-                    { id: '60', name: 'ケーブルプレスダウン', weight: '-', sets: '2', repsRange: '10-15' }
+                5: { label: '金曜日', status: 'Pull A', exercises: [
+                    ex(501, 'ラットプルダウン', 3),
+                    ex(502, '懸垂', 3, { restMinutes: 3 }),
+                    ex(503, 'チェストサポートロー', 3),
+                    ex(504, 'ケーブルロー', 2),
+                    ex(505, 'リアデルトフライ', 2, { restMinutes: 1.5 }),
+                    ex(506, 'バーベルカール', 3),
+                    ex(507, 'プリーチャーカール', 2, { restMinutes: 1.5 })
                 ]},
-                6: { label: '土曜日', status: '厚みメイン', exercises: [
-                    { id: '61', name: 'アイソラテラルロー', weight: '85', sets: '4', repsRange: '6-10' },
-                    { id: '62', name: '懸垂', weight: '-', sets: '3', repsRange: '6-10' },
-                    { id: '63', name: 'チェストサポートロウ', weight: '-', sets: '3', repsRange: '8-12' },
-                    { id: '64', name: 'ラットプルダウン ミドルパラレル', weight: '68', sets: '2', repsRange: '8-12' },
-                    { id: '65', name: 'プーリーロー', weight: '130', sets: '3', repsRange: '8-12' },
-                    { id: '66', name: 'ストレートアームプルダウン', weight: '-', sets: '2', repsRange: '12-20' },
-                    { id: '67', name: 'インクラインダンベルカール', weight: '-', sets: '3', repsRange: '8-12' },
-                    { id: '68', name: 'ハンマーカール', weight: '-', sets: '2', repsRange: '10-15' }
+                6: { label: '土曜日', status: 'Push B', exercises: [
+                    ex(601, 'ダンベルショルダープレス', 3, { restMinutes: 3, weightStep: 2 }),
+                    ex(602, 'ベンチプレス', 3, { restMinutes: 3, perSetWeight: true }),
+                    ex(603, 'インクラインダンベルプレス', 2, { restMinutes: 3, weightStep: 2 }),
+                    ex(604, 'サイドレイズ', 4, { restMinutes: 1, weightStep: 1 }),
+                    ex(605, 'マシンサイドレイズ', 3, { restMinutes: 1.5, weightStep: 1.25 }),
+                    ex(606, 'ペックフライ', 2, { restMinutes: 1.5, weightStep: 2 }),
+                    ex(607, 'ライイングエクステンション', 3, { restMinutes: 1.5 }),
+                    ex(608, 'オーバーヘッドエクステンション', 3, { restMinutes: 1.5, perSetWeight: true })
                 ]}
             };
 
             localStorage.setItem('gym_menu', JSON.stringify(menu));
+            [
+                'gym_migration_20260711_v1',
+                'gym_migration_reorder_v2',
+                'gym_migration_ppl_labels_v3',
+                'gym_migration_weight_step_v4',
+                'gym_migration_weight_step_v5',
+                'gym_migration_saturday_rebuild_v6',
+                'gym_migration_draft_recovery_v7',
+                'gym_migration_ppl_zoryoki_v8',
+                'gym_migration_ppl_complete_v9'
+            ].forEach(flag => localStorage.setItem(flag, '1'));
+
             document.getElementById('status').textContent = '✅ メニューを登録しました！index.htmlを開いてください。';
             document.getElementById('status').style.color = 'green';
         }

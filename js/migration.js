@@ -14,7 +14,8 @@
         'gym_migration_weight_step_v5',
         'gym_migration_saturday_rebuild_v6',
         'gym_migration_draft_recovery_v7',
-        'gym_migration_ppl_zoryoki_v8'
+        'gym_migration_ppl_zoryoki_v8',
+        'gym_migration_ppl_complete_v9'
     ].forEach(flag => {
         if (!localStorage.getItem(flag)) localStorage.setItem(flag, '1');
     });
@@ -431,5 +432,227 @@
         localStorage.setItem(FLAG8, '1');
     } catch (e) {
         console.error('Migration v8 failed:', e);
+    }
+})();
+
+// PPL完全版メニューへの入れ替え。
+// ユーザー指定どおり同種目だけ名前を揃えて記録・重量を引き継ぎ、別名の誤マッピングはしない。
+(function () {
+    const FLAG9 = 'gym_migration_ppl_complete_v9';
+    if (localStorage.getItem(FLAG9)) return;
+
+    try {
+        const oldMenu = storage.getMenu();
+        const byName = {};
+
+        function remember(name, ex, weightOverride) {
+            if (!name) return;
+            const next = {
+                name,
+                weight: weightOverride !== undefined ? weightOverride : (ex.weight ?? ''),
+                repsRange: ex.repsRange ?? '',
+                restMinutes: ex.restMinutes ?? 2,
+                perSetWeight: !!ex.perSetWeight,
+                weightStep: ex.weightStep ?? 2.5
+            };
+            const prev = byName[name];
+            if (!prev) {
+                byName[name] = next;
+                return;
+            }
+            if ((prev.weight === '' || prev.weight == null) && next.weight !== '' && next.weight != null) {
+                byName[name] = Object.assign({}, prev, next);
+            }
+        }
+
+        for (let day = 0; day < 7; day++) {
+            (oldMenu[day]?.exercises || []).forEach(ex => {
+                remember(ex.name, ex);
+                (ex.alternatives || []).forEach(altName => {
+                    remember(altName, ex, ex.altWeights?.[altName] ?? ex.weight);
+                });
+            });
+        }
+
+        // 同種目の表記ゆれだけを新メニュー名へ揃える（これ以外の種目は引き継がない）
+        const nameRenames = {
+            'チェストサポートロウ': 'チェストサポートロー',
+            'ラットプルダウン ミドルパラレル': 'ラットプルダウン',
+            'プーリーロー': 'ケーブルロー',
+            'ダンベルサイドレイズ': 'サイドレイズ',
+            'ショルダープレスマシン（ハンマーストレングス）': 'マシンショルダープレス',
+            'ショルダープレスマシン(ハンマーストレングス)': 'マシンショルダープレス',
+            'ショルダープレスマシン': 'マシンショルダープレス',
+            'リアマシン': 'リアデルトフライ',
+            'ライイングトライセプスエクステンション': 'ライイングエクステンション',
+            '加重懸垂': '懸垂'
+            // オーバーヘッドエクステンション はそのままの名前で継続
+        };
+
+        function renameKeyedObject(obj) {
+            if (!obj || typeof obj !== 'object') return;
+            Object.keys(nameRenames).forEach(oldName => {
+                if (obj[oldName] === undefined) return;
+                const newName = nameRenames[oldName];
+                if (obj[newName] === undefined) obj[newName] = obj[oldName];
+                delete obj[oldName];
+            });
+        }
+
+        const records = storage.getRecords();
+        Object.keys(records).forEach(dateStr => {
+            Object.keys(records[dateStr]).forEach(dayIdx => {
+                renameKeyedObject(records[dateStr][dayIdx]);
+            });
+        });
+        localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(records));
+
+        const draftsRaw = localStorage.getItem(STORAGE_KEYS.DRAFTS);
+        if (draftsRaw) {
+            try {
+                const drafts = JSON.parse(draftsRaw);
+                Object.keys(drafts || {}).forEach(dayKey => renameKeyedObject(drafts[dayKey]));
+                localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts));
+            } catch (e) { /* ignore broken drafts */ }
+        }
+
+        Object.keys(nameRenames).forEach(oldName => {
+            const newName = nameRenames[oldName];
+            if (byName[oldName] && !byName[newName]) {
+                byName[newName] = Object.assign({}, byName[oldName], { name: newName });
+            }
+        });
+
+        // 重量引き継ぎを許可する種目（同名・リネーム済みの同種目のみ）
+        const carryAllowed = new Set([
+            'チェストサポートロー',
+            'ラットプルダウン',
+            'ケーブルロー',
+            'サイドレイズ',
+            'マシンショルダープレス',
+            'リアデルトフライ',
+            'オーバーヘッドエクステンション',
+            'ライイングエクステンション',
+            '懸垂',
+            // メニュー上も旧から同名で残る種目
+            'ベンチプレス',
+            'インクラインダンベルプレス',
+            'ディップス',
+            'マシンサイドレイズ',
+            'ケーブルプレスダウン',
+            'ペックフライ',
+            'ルーマニアンデッドリフト',
+            'ハックスクワット',
+            'レッグエクステンション',
+            'レッグカール',
+            'インクラインダンベルカール',
+            'ケーブルクランチ',
+            'ハンギングレッグレイズ',
+            'ダンベルショルダープレス',
+            'バーベルカール',
+            'アイソラテラルロー'
+        ]);
+
+        function ex(name, fields) {
+            const carried = carryAllowed.has(name) ? byName[name] : null;
+            const base = Object.assign({
+                id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+                name,
+                weight: '',
+                sets: '3',
+                repsRange: '',
+                restMinutes: 2,
+                perSetWeight: false,
+                weightStep: 2.5
+            }, fields || {});
+
+            if (carried) {
+                if (carried.weight !== '' && carried.weight != null) base.weight = carried.weight;
+                if (carried.repsRange) base.repsRange = carried.repsRange;
+                if (carried.perSetWeight) base.perSetWeight = true;
+                if (carried.weightStep != null) base.weightStep = carried.weightStep;
+            }
+            return base;
+        }
+
+        const newMenu = {
+            0: { label: '日曜日', status: '休み', exercises: [] },
+            1: {
+                label: '月曜日', status: 'Pull B',
+                exercises: [
+                    ex('チェストサポートロー', { sets: '4', restMinutes: 2 }),
+                    ex('DYロー', { sets: '4', restMinutes: 3 }),
+                    ex('懸垂', { sets: '3', restMinutes: 3 }),
+                    ex('ナローラットプルダウン', { sets: '2', restMinutes: 2 }),
+                    ex('アイソラテラルロー', { sets: '2', restMinutes: 2 }),
+                    ex('リアデルトフライ', { sets: '2', restMinutes: 1.5 }),
+                    ex('バーベルカール', { sets: '2', restMinutes: 2 }),
+                    ex('プリーチャーカール', { sets: '3', restMinutes: 1.5 }),
+                    ex('レッグエクステンション', { sets: '2', restMinutes: 1.5 }),
+                    ex('レッグカール', { sets: '2', restMinutes: 2 })
+                ]
+            },
+            2: {
+                label: '火曜日', status: 'Push A',
+                exercises: [
+                    ex('ベンチプレス', { sets: '3', restMinutes: 3 }),
+                    ex('インクラインダンベルプレス', { sets: '3', restMinutes: 3, weightStep: 2 }),
+                    ex('ディップス', { sets: '2', restMinutes: 2.5 }),
+                    ex('マシンショルダープレス', { sets: '2', restMinutes: 2, weightStep: 1.25 }),
+                    ex('サイドレイズ', { sets: '3', restMinutes: 1, weightStep: 1 }),
+                    ex('マシンサイドレイズ', { sets: '3', restMinutes: 1.5, weightStep: 1.25 }),
+                    ex('ライイングエクステンション', { sets: '3', restMinutes: 1.5 }),
+                    ex('ケーブルプレスダウン', { sets: '2', restMinutes: 1.5 }),
+                    ex('ペックフライ', { sets: '2', restMinutes: 1.5, weightStep: 2 })
+                ]
+            },
+            3: {
+                label: '水曜日', status: 'Leg',
+                exercises: [
+                    ex('ベンチプレス', { sets: '3', restMinutes: 3 }),
+                    ex('スクワット', { sets: '2', restMinutes: 3 }),
+                    ex('ルーマニアンデッドリフト', { sets: '2', restMinutes: 3 }),
+                    ex('ハックスクワット', { sets: '2', restMinutes: 3 }),
+                    ex('レッグエクステンション', { sets: '3', restMinutes: 1.5 }),
+                    ex('レッグカール', { sets: '3', restMinutes: 2 }),
+                    ex('ライイングエクステンション', { sets: '2', restMinutes: 1.5 }),
+                    ex('インクラインダンベルカール', { sets: '2', restMinutes: 1.5, weightStep: 2 }),
+                    ex('ケーブルクランチ', { sets: '3', restMinutes: 1.5 }),
+                    ex('ハンギングレッグレイズ', { sets: '3', restMinutes: 1.5 })
+                ]
+            },
+            4: { label: '木曜日', status: '休み', exercises: [] },
+            5: {
+                label: '金曜日', status: 'Pull A',
+                exercises: [
+                    ex('ラットプルダウン', { sets: '3', restMinutes: 2 }),
+                    ex('懸垂', { sets: '3', restMinutes: 3 }),
+                    ex('チェストサポートロー', { sets: '3', restMinutes: 2 }),
+                    ex('ケーブルロー', { sets: '2', restMinutes: 2 }),
+                    ex('リアデルトフライ', { sets: '2', restMinutes: 1.5 }),
+                    ex('バーベルカール', { sets: '3', restMinutes: 2 }),
+                    ex('プリーチャーカール', { sets: '2', restMinutes: 1.5 })
+                ]
+            },
+            6: {
+                label: '土曜日', status: 'Push B',
+                exercises: [
+                    ex('ダンベルショルダープレス', { sets: '3', restMinutes: 3, weightStep: 2 }),
+                    ex('ベンチプレス', { sets: '3', restMinutes: 3 }),
+                    ex('インクラインダンベルプレス', { sets: '2', restMinutes: 3, weightStep: 2 }),
+                    ex('サイドレイズ', { sets: '4', restMinutes: 1, weightStep: 1 }),
+                    ex('マシンサイドレイズ', { sets: '3', restMinutes: 1.5, weightStep: 1.25 }),
+                    ex('ペックフライ', { sets: '2', restMinutes: 1.5, weightStep: 2 }),
+                    ex('ライイングエクステンション', { sets: '3', restMinutes: 1.5 }),
+                    ex('オーバーヘッドエクステンション', { sets: '3', restMinutes: 1.5 })
+                ]
+            }
+        };
+
+        storage.setMenu(newMenu);
+        localStorage.removeItem(STORAGE_KEYS.FOCUS_PROGRESS);
+        localStorage.setItem(FLAG9, '1');
+    } catch (e) {
+        console.error('Migration v9 failed:', e);
     }
 })();
