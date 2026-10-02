@@ -28,6 +28,54 @@ function countFilledSets(record) {
     return filled;
 }
 
+// 新メニュー名 ← 旧名・表記ゆれ（記録検索・引き継ぎ用）
+const EXERCISE_NAME_ALIASES = {
+    'チェストサポートロー': ['チェストサポートロウ'],
+    'ラットプルダウン': ['ラットプルダウン ミドルパラレル'],
+    'ケーブルロー': ['プーリーロー'],
+    'サイドレイズ': ['ダンベルサイドレイズ'],
+    'マシンショルダープレス': [
+        'ショルダープレスマシン（ハンマーストレングス）',
+        'ショルダープレスマシン(ハンマーストレングス)',
+        'ショルダープレスマシン'
+    ],
+    'リアデルトフライ': ['リアマシン'],
+    'ライイングエクステンション': ['ライイングトライセプスエクステンション'],
+    '懸垂': ['加重懸垂'],
+    'オーバーヘッドエクステンション': [],
+    'マシンサイドレイズ': ['マシンサイド']
+};
+
+function exerciseLookupNames(exerciseName) {
+    const aliases = EXERCISE_NAME_ALIASES[exerciseName] || [];
+    return [exerciseName, ...aliases];
+}
+
+function parseRecordSetReps(entry) {
+    if (entry == null || entry === '') return null;
+    if (typeof entry === 'object') {
+        if (entry.reps === undefined || entry.reps === '') return null;
+        const n = parseInt(entry.reps, 10);
+        return Number.isNaN(n) ? null : n;
+    }
+    const n = parseInt(entry, 10);
+    return Number.isNaN(n) ? null : n;
+}
+
+function parseRecordSetWeight(entry) {
+    if (entry && typeof entry === 'object' && entry.weight !== undefined && entry.weight !== '') {
+        const n = parseFloat(entry.weight);
+        return Number.isNaN(n) ? null : n;
+    }
+    return null;
+}
+
+function parseSharedWeight(record) {
+    if (!record || record.weight === undefined || record.weight === '') return null;
+    const n = parseFloat(record.weight);
+    return Number.isNaN(n) ? null : n;
+}
+
 // 開発者本人の実際のトレーニング開始日（このデバイスに既存メニューがある＝本人の端末の場合の初期値として使う）
 const DEVELOPER_TRAINING_START_DATE = '2025-08-11';
 
@@ -274,18 +322,22 @@ class Storage {
         const records = this.getRecords();
         const allRecords = [];
         const excludeStr = excludeDateStr || toLocalDateStr();
+        const names = new Set(exerciseLookupNames(exerciseName));
 
         for (const dateStr in records) {
             if (dateStr === excludeStr) continue;
             const dayEntries = records[dateStr];
             for (const dayIndex in dayEntries) {
-                if (dayEntries[dayIndex][exerciseName]) {
-                    allRecords.push({
-                        date: dateStr,
-                        dayIndex: parseInt(dayIndex, 10),
-                        data: dayEntries[dayIndex][exerciseName],
-                        filled: countFilledSets(dayEntries[dayIndex][exerciseName])
-                    });
+                for (const name of names) {
+                    if (dayEntries[dayIndex][name]) {
+                        allRecords.push({
+                            date: dateStr,
+                            dayIndex: parseInt(dayIndex, 10),
+                            data: dayEntries[dayIndex][name],
+                            filled: countFilledSets(dayEntries[dayIndex][name])
+                        });
+                        break;
+                    }
                 }
             }
         }
@@ -303,6 +355,84 @@ class Storage {
             : rank(allRecords.filter(r => r.dayIndex === preferredDayIndex));
         const ranked = preferred.length > 0 ? preferred : rank(allRecords);
         return ranked[0].data;
+    }
+
+    // 種目のセット別最高記録（回数）と、これまでの最高重量を返す。
+    // セット1の最高は過去のセット1同士、セット2の最高はセット2同士で比較する。
+    getBestSets(exerciseName, excludeDateStr) {
+        const records = this.getRecords();
+        const excludeStr = excludeDateStr || toLocalDateStr();
+        const names = new Set(exerciseLookupNames(exerciseName));
+        const bestReps = [];
+        const bestWeights = [];
+        let bestSharedWeight = null;
+        let sawPerSet = false;
+
+        for (const dateStr in records) {
+            if (dateStr === excludeStr) continue;
+            const dayEntries = records[dateStr];
+            for (const dayIndex in dayEntries) {
+                for (const name of names) {
+                    const data = dayEntries[dayIndex][name];
+                    if (!data) continue;
+
+                    const shared = parseSharedWeight(data);
+                    if (shared != null && (bestSharedWeight == null || shared > bestSharedWeight)) {
+                        bestSharedWeight = shared;
+                    }
+                    if (data.perSetWeight) sawPerSet = true;
+
+                    (data.sets || []).forEach((entry, i) => {
+                        const reps = parseRecordSetReps(entry);
+                        if (reps != null && (bestReps[i] == null || reps > bestReps[i])) {
+                            bestReps[i] = reps;
+                        }
+                        const w = parseRecordSetWeight(entry);
+                        if (w != null) {
+                            sawPerSet = true;
+                            if (bestWeights[i] == null || w > bestWeights[i]) bestWeights[i] = w;
+                            if (bestSharedWeight == null || w > bestSharedWeight) bestSharedWeight = w;
+                        }
+                    });
+                    break;
+                }
+            }
+        }
+
+        if (bestReps.length === 0 && bestSharedWeight == null) return null;
+
+        const maxLen = Math.max(bestReps.length, bestWeights.length, 1);
+        const sets = [];
+        for (let i = 0; i < maxLen; i++) {
+            if (sawPerSet || bestWeights[i] != null) {
+                sets.push({
+                    reps: bestReps[i] != null ? String(bestReps[i]) : '',
+                    weight: bestWeights[i] != null ? String(bestWeights[i]) : ''
+                });
+            } else {
+                sets.push(bestReps[i] != null ? String(bestReps[i]) : '');
+            }
+        }
+
+        return {
+            perSetWeight: sawPerSet,
+            sets,
+            weight: bestSharedWeight != null ? String(bestSharedWeight) : '',
+            setCount: sets.length
+        };
+    }
+
+    // 種目の過去最高重量（共有重量 or セット重量の最大）を返す
+    getBestWeight(exerciseName, excludeDateStr) {
+        const best = this.getBestSets(exerciseName, excludeDateStr);
+        if (!best) return null;
+        if (best.weight !== '') return best.weight;
+        let max = null;
+        (best.sets || []).forEach(entry => {
+            const w = parseRecordSetWeight(entry);
+            if (w != null && (max == null || w > max)) max = w;
+        });
+        return max != null ? String(max) : null;
     }
 
     // 指定曜日の過去セッション一覧（新しい順）

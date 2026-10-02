@@ -15,7 +15,8 @@
         'gym_migration_saturday_rebuild_v6',
         'gym_migration_draft_recovery_v7',
         'gym_migration_ppl_zoryoki_v8',
-        'gym_migration_ppl_complete_v9'
+        'gym_migration_ppl_complete_v9',
+        'gym_migration_best_carry_v10'
     ].forEach(flag => {
         if (!localStorage.getItem(flag)) localStorage.setItem(flag, '1');
     });
@@ -654,5 +655,83 @@
         localStorage.setItem(FLAG9, '1');
     } catch (e) {
         console.error('Migration v9 failed:', e);
+    }
+})();
+
+// 未引き継ぎ名・旧名残りを整え、メニュー重量を過去最高重量へ更新する。
+// プラスマイナス比較は getBestSets（セット番号ごとの最高回数）側で行う。
+(function () {
+    const FLAG10 = 'gym_migration_best_carry_v10';
+    if (localStorage.getItem(FLAG10)) return;
+
+    try {
+        const nameRenames = {
+            'チェストサポートロウ': 'チェストサポートロー',
+            'マシンロー': 'チェストサポートロー',
+            'ラットプルダウン ミドルパラレル': 'ラットプルダウン',
+            'プーリーロー': 'ケーブルロー',
+            'ダンベルサイドレイズ': 'サイドレイズ',
+            'ショルダープレスマシン（ハンマーストレングス）': 'マシンショルダープレス',
+            'ショルダープレスマシン(ハンマーストレングス)': 'マシンショルダープレス',
+            'ショルダープレスマシン': 'マシンショルダープレス',
+            'リアマシン': 'リアデルトフライ',
+            'ライイングトライセプスエクステンション': 'ライイングエクステンション',
+            'オーバーヘッドケーブルエクステンション': 'オーバーヘッドエクステンション',
+            '加重懸垂': '懸垂',
+            'マシンサイド': 'マシンサイドレイズ'
+        };
+
+        function renameKeyedObject(obj) {
+            if (!obj || typeof obj !== 'object') return;
+            Object.keys(nameRenames).forEach(oldName => {
+                if (obj[oldName] === undefined) return;
+                const newName = nameRenames[oldName];
+                if (obj[newName] === undefined) obj[newName] = obj[oldName];
+                delete obj[oldName];
+            });
+        }
+
+        const records = storage.getRecords();
+        Object.keys(records).forEach(dateStr => {
+            Object.keys(records[dateStr]).forEach(dayIdx => {
+                renameKeyedObject(records[dateStr][dayIdx]);
+            });
+        });
+        localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(records));
+
+        const draftsRaw = localStorage.getItem(STORAGE_KEYS.DRAFTS);
+        if (draftsRaw) {
+            try {
+                const drafts = JSON.parse(draftsRaw);
+                Object.keys(drafts || {}).forEach(dayKey => renameKeyedObject(drafts[dayKey]));
+                localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts));
+            } catch (e) { /* ignore */ }
+        }
+
+        const menu = storage.getMenu();
+        for (let day = 0; day < 7; day++) {
+            const exercises = menu[day]?.exercises || [];
+            exercises.forEach(ex => {
+                if (!ex?.name) return;
+                if (nameRenames[ex.name]) ex.name = nameRenames[ex.name];
+
+                const best = storage.getBestSets(ex.name);
+                if (!best) return;
+
+                if (best.weight !== '') {
+                    const cur = parseFloat(ex.weight);
+                    const bestW = parseFloat(best.weight);
+                    if (ex.weight === '' || ex.weight == null || Number.isNaN(cur) || (!Number.isNaN(bestW) && bestW >= cur)) {
+                        ex.weight = best.weight;
+                    }
+                }
+
+                if (best.perSetWeight) ex.perSetWeight = true;
+            });
+        }
+        storage.setMenu(menu);
+        localStorage.setItem(FLAG10, '1');
+    } catch (e) {
+        console.error('Migration v10 failed:', e);
     }
 })();

@@ -742,13 +742,13 @@ button, input {
     white-space: nowrap;
     flex-shrink: 0;
     cursor: pointer;
-    min-width: 28px;
+    min-width: 36px;
     text-align: center;
 }
 
 .btn-same-spacer {
     display: inline-block;
-    min-width: 28px;
+    min-width: 36px;
     height: 24px;
     flex-shrink: 0;
     visibility: hidden;

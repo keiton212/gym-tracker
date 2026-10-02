@@ -25,24 +25,24 @@ function extractLastWeightFromSetEntry(entry) {
 }
 
 function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
-    const lastRecord = storage.getLastRecord(exercise.name, currentSessionDateStr(), dayIndex);
+    const bestRecord = storage.getBestSets(exercise.name, currentSessionDateStr());
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const suggestedReps = parseRepsRangeLower(exercise.repsRange);
 
     return Array.from({ length: setCount }, (_, i) => {
-        const entry = lastRecord?.sets?.[i];
-        const lastReps = extractLastRepsFromSetEntry(entry);
+        const entry = bestRecord?.sets?.[i];
+        const bestReps = extractLastRepsFromSetEntry(entry);
         const liveReps = liveValues?.sets?.[i]?.reps ?? '';
-        // 過去記録があればそれを、無ければ目標回数レンジの下限を初期値として使う
-        const defaultReps = lastReps !== null ? lastReps : suggestedReps;
+        // セットごとの最高回数があればそれを、無ければ目標回数レンジの下限を初期値として使う
+        const defaultReps = bestReps !== null ? bestReps : suggestedReps;
         const placeholder = defaultReps !== null ? `${defaultReps}` : '回数';
-        const sameBtn = lastReps !== null
-            ? `<button type="button" class="btn-same" data-set="${i}">同</button>`
+        const sameBtn = bestReps !== null
+            ? `<button type="button" class="btn-same" data-set="${i}" title="このセットの最高回数を入れる">最高</button>`
             : '<span class="btn-same-spacer" aria-hidden="true"></span>';
         return `
             <div class="set-input-row">
                 <label>セット${i + 1}</label>
-                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${lastReps ?? ''}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${placeholder}" min="0" inputmode="numeric">
+                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${bestReps ?? ''}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${placeholder}" min="0" inputmode="numeric" title="比較基準: セット${i + 1}の最高回数">
                 <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
                 <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
                 ${sameBtn}
@@ -53,31 +53,31 @@ function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
 }
 
 function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
-    const lastRecord = storage.getLastRecord(exercise.name, currentSessionDateStr(), dayIndex);
+    const bestRecord = storage.getBestSets(exercise.name, currentSessionDateStr());
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const step = exercise.weightStep ?? 2.5;
     const suggestedReps = parseRepsRangeLower(exercise.repsRange);
 
     return Array.from({ length: setCount }, (_, i) => {
-        const entry = lastRecord?.sets?.[i];
-        const lastReps = extractLastRepsFromSetEntry(entry);
-        const lastWeight = extractLastWeightFromSetEntry(entry);
+        const entry = bestRecord?.sets?.[i];
+        const bestReps = extractLastRepsFromSetEntry(entry);
+        const bestWeight = extractLastWeightFromSetEntry(entry);
         const liveWeight = liveValues?.sets?.[i]?.weight ?? '';
         const liveReps = liveValues?.sets?.[i]?.reps ?? '';
-        // 過去記録があればそれを、無ければ目標回数レンジの下限を初期値として使う
-        const defaultReps = lastReps !== null ? lastReps : suggestedReps;
+        // セットごとの最高回数があればそれを、無ければ目標回数レンジの下限を初期値として使う
+        const defaultReps = bestReps !== null ? bestReps : suggestedReps;
         const repsPlaceholder = defaultReps !== null ? `${defaultReps}` : '回数';
-        const weightPlaceholder = lastWeight !== '' ? `${lastWeight}` : 'kg';
-        const sameBtn = (lastReps !== null || lastWeight !== '')
-            ? `<button type="button" class="btn-same" data-set="${i}">同</button>`
+        const weightPlaceholder = bestWeight !== '' ? `${bestWeight}` : 'kg';
+        const sameBtn = (bestReps !== null || bestWeight !== '')
+            ? `<button type="button" class="btn-same" data-set="${i}" title="このセットの最高を入れる">最高</button>`
             : '<span class="btn-same-spacer" aria-hidden="true"></span>';
         return `
             <div class="set-input-row set-input-row-weighted">
                 <label>セット${i + 1}</label>
                 <button type="button" class="btn-weight-step-set" data-set="${i}" data-delta="-${step}" aria-label="重量を減らす">−</button>
-                <input type="number" class="set-weight-input" data-set="${i}" data-last-weight="${lastWeight}" value="${escapeAttr(liveWeight)}" placeholder="${weightPlaceholder}" min="0" inputmode="decimal">
+                <input type="number" class="set-weight-input" data-set="${i}" data-last-weight="${bestWeight}" value="${escapeAttr(liveWeight)}" placeholder="${weightPlaceholder}" min="0" inputmode="decimal" title="比較基準: セット${i + 1}の最高重量">
                 <button type="button" class="btn-weight-step-set" data-set="${i}" data-delta="${step}" aria-label="重量を増やす">＋</button>
-                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${lastReps ?? ''}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${repsPlaceholder}" min="0" inputmode="numeric">
+                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${bestReps ?? ''}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${repsPlaceholder}" min="0" inputmode="numeric" title="比較基準: セット${i + 1}の最高回数">
                 <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
                 <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
                 ${sameBtn}
