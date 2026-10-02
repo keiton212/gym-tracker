@@ -8,6 +8,26 @@ const STORAGE_KEYS = {
     ,INITIALIZED: 'gym_storage_initialized'
 };
 
+// 端末のローカル日付で YYYY-MM-DD を作る（UTCの toISOString だと日本時間の早朝に日付がずれる）
+function toLocalDateStr(date = new Date()) {
+    const d = date instanceof Date ? date : new Date(date);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function countFilledSets(record) {
+    const sets = record?.sets || [];
+    let filled = 0;
+    sets.forEach(entry => {
+        if (entry == null || entry === '') return;
+        if (typeof entry === 'object') {
+            if ((entry.reps ?? '') !== '' || (entry.weight ?? '') !== '') filled += 1;
+        } else {
+            filled += 1;
+        }
+    });
+    return filled;
+}
+
 // 開発者本人の実際のトレーニング開始日（このデバイスに既存メニューがある＝本人の端末の場合の初期値として使う）
 const DEVELOPER_TRAINING_START_DATE = '2025-08-11';
 
@@ -90,7 +110,7 @@ class Storage {
         // トレーニング開始日：既にメニューがある（＝本人の端末）なら本人の実際の開始日を、
         // 真っさらな新規インストール（他人に配布したリンクなど）なら「今日」を開始日にする
         if (!localStorage.getItem(STORAGE_KEYS.TRAINING_START_DATE)) {
-            const startDate = hasMenu ? DEVELOPER_TRAINING_START_DATE : new Date().toISOString().split('T')[0];
+            const startDate = hasMenu ? DEVELOPER_TRAINING_START_DATE : toLocalDateStr();
             localStorage.setItem(STORAGE_KEYS.TRAINING_START_DATE, startDate);
         }
         localStorage.setItem(STORAGE_KEYS.INITIALIZED, '1');
@@ -108,6 +128,11 @@ class Storage {
     setMenu(menu) {
         localStorage.setItem(STORAGE_KEYS.MENU, JSON.stringify(menu));
         this.notifyChanged();
+        // 並び替え直後に端末を閉じると debounce 前の古いスナップショットが残ることがあるため、メニュー変更は即時退避する
+        if (typeof Backup !== 'undefined' && Backup.createLocalSnapshot) {
+            clearTimeout(Backup.snapshotTimer);
+            void Backup.createLocalSnapshot('menu-change');
+        }
     }
 
     getExercisesForDay(dayIndex) {
@@ -192,7 +217,6 @@ class Storage {
         this.setMenu(menu);
     }
 
-    // 種目の並び替え（direction: -1で上へ、+1で下へ）
     reorderExercise(dayIndex, exerciseId, direction) {
         const menu = this.getMenu();
         const exercises = menu[dayIndex].exercises;
@@ -213,7 +237,7 @@ class Storage {
 
     saveRecord(date, dayIndex, exerciseRecords) {
         const records = this.getRecords();
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = toLocalDateStr(date);
 
         if (!records[dateStr]) {
             records[dateStr] = {};
@@ -226,7 +250,7 @@ class Storage {
 
     getRecordForDay(date, dayIndex) {
         const records = this.getRecords();
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = toLocalDateStr(date);
         return records[dateStr]?.[dayIndex] || null;
     }
 
@@ -243,13 +267,13 @@ class Storage {
         this.notifyChanged();
     }
 
-    // 前回の記録を取得する。曜日は問わず種目名だけで検索する
-    // （メニューの曜日を変えたり並び替えたりしても、同じ種目名なら記録を引き継げるようにするため）。
-    // excludeDateStr（省略時は今日）は除外する（トレーニング中に自動保存された今回分を「前回の記録」として拾わないため）
-    getLastRecord(exerciseName, excludeDateStr) {
+    // 前回の記録を取得する。
+    // 同じ曜日の記録を優先し、無ければ種目名一致の直近記録にフォールバックする。
+    // excludeDateStr（省略時は今日・ローカル日付）は除外する（トレーニング中に自動保存された今回分を「前回の記録」として拾わないため）
+    getLastRecord(exerciseName, excludeDateStr, preferredDayIndex) {
         const records = this.getRecords();
         const allRecords = [];
-        const excludeStr = excludeDateStr || new Date().toISOString().split('T')[0];
+        const excludeStr = excludeDateStr || toLocalDateStr();
 
         for (const dateStr in records) {
             if (dateStr === excludeStr) continue;
@@ -258,15 +282,27 @@ class Storage {
                 if (dayEntries[dayIndex][exerciseName]) {
                     allRecords.push({
                         date: dateStr,
-                        data: dayEntries[dayIndex][exerciseName]
+                        dayIndex: parseInt(dayIndex, 10),
+                        data: dayEntries[dayIndex][exerciseName],
+                        filled: countFilledSets(dayEntries[dayIndex][exerciseName])
                     });
                 }
             }
         }
 
         if (allRecords.length === 0) return null;
-        allRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
-        return allRecords[0].data;
+
+        const rank = (list) => list.slice().sort((a, b) => {
+            const dateDiff = new Date(b.date) - new Date(a.date);
+            if (dateDiff !== 0) return dateDiff;
+            return b.filled - a.filled;
+        });
+
+        const preferred = preferredDayIndex === undefined || preferredDayIndex === null
+            ? []
+            : rank(allRecords.filter(r => r.dayIndex === preferredDayIndex));
+        const ranked = preferred.length > 0 ? preferred : rank(allRecords);
+        return ranked[0].data;
     }
 
     // 指定曜日の過去セッション一覧（新しい順）

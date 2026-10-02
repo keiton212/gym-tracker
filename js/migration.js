@@ -299,7 +299,9 @@
             const diffDays = (today.getDay() - dayIndex + 7) % 7;
             const recordDate = new Date(today);
             recordDate.setDate(today.getDate() - diffDays);
-            const dateStr = recordDate.toISOString().split('T')[0];
+            const dateStr = typeof toLocalDateStr === 'function'
+                ? toLocalDateStr(recordDate)
+                : recordDate.toISOString().split('T')[0];
 
             const records = storage.getRecords();
             if (records[dateStr]?.[dayIndex]) return;

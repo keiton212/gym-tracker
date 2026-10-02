@@ -742,6 +742,17 @@ button, input {
     white-space: nowrap;
     flex-shrink: 0;
     cursor: pointer;
+    min-width: 28px;
+    text-align: center;
+}
+
+.btn-same-spacer {
+    display: inline-block;
+    min-width: 28px;
+    height: 24px;
+    flex-shrink: 0;
+    visibility: hidden;
+    pointer-events: none;
 }
 
 .reps-diff {
@@ -754,8 +765,10 @@ button, input {
 }
 
 .set-input-row input {
-    flex: 1;
-    min-width: 0;
+    flex: 0 0 auto;
+    width: 56px;
+    min-width: 56px;
+    max-width: 56px;
     padding: 10px 8px;
     border: 1px solid #d1d5db;
     border-radius: 6px;
@@ -797,14 +810,16 @@ button, input {
 }
 
 .set-input-row-weighted .set-weight-input {
-    flex: 1;
-    min-width: 0;
+    flex: 0 0 auto;
+    width: 52px;
+    min-width: 52px;
     max-width: 52px;
 }
 
 .set-input-row-weighted .reps-input {
-    flex: 1;
-    min-width: 0;
+    flex: 0 0 auto;
+    width: 44px;
+    min-width: 44px;
     max-width: 44px;
 }
 

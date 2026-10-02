@@ -1,28 +1,44 @@
 // トレーニング中に選択されている記録日（app.sessionDate）を「前回の記録」検索から除外するための日付文字列
 function currentSessionDateStr() {
-    return app?.sessionDate ? app.sessionDate.toISOString().split('T')[0] : undefined;
+    if (!app?.sessionDate) return undefined;
+    return typeof toLocalDateStr === 'function'
+        ? toLocalDateStr(app.sessionDate)
+        : `${app.sessionDate.getFullYear()}-${String(app.sessionDate.getMonth() + 1).padStart(2, '0')}-${String(app.sessionDate.getDate()).padStart(2, '0')}`;
+}
+
+function extractLastRepsFromSetEntry(entry) {
+    if (entry == null || entry === '') return null;
+    if (typeof entry === 'object') {
+        if (entry.reps === undefined || entry.reps === '') return null;
+        const n = parseInt(entry.reps, 10);
+        return Number.isNaN(n) ? null : n;
+    }
+    const n = parseInt(entry, 10);
+    return Number.isNaN(n) ? null : n;
+}
+
+function extractLastWeightFromSetEntry(entry) {
+    if (entry && typeof entry === 'object' && entry.weight !== undefined && entry.weight !== '') {
+        return entry.weight;
+    }
+    return '';
 }
 
 function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
-    const lastRecord = storage.getLastRecord(exercise.name, currentSessionDateStr());
+    const lastRecord = storage.getLastRecord(exercise.name, currentSessionDateStr(), dayIndex);
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
-    const lastIsPerSetWeight = lastRecord?.perSetWeight;
     const suggestedReps = parseRepsRangeLower(exercise.repsRange);
 
     return Array.from({ length: setCount }, (_, i) => {
-        let lastReps = null;
-        if (lastRecord?.sets?.[i] !== undefined) {
-            const entry = lastRecord.sets[i];
-            const rawReps = lastIsPerSetWeight ? entry?.reps : entry;
-            if (rawReps !== undefined && rawReps !== '') lastReps = parseInt(rawReps);
-        }
+        const entry = lastRecord?.sets?.[i];
+        const lastReps = extractLastRepsFromSetEntry(entry);
         const liveReps = liveValues?.sets?.[i]?.reps ?? '';
         // 過去記録があればそれを、無ければ目標回数レンジの下限を初期値として使う
-        const defaultReps = lastReps !== null && !isNaN(lastReps) ? lastReps : suggestedReps;
+        const defaultReps = lastReps !== null ? lastReps : suggestedReps;
         const placeholder = defaultReps !== null ? `${defaultReps}` : '回数';
-        const sameBtn = lastReps !== null && !isNaN(lastReps)
+        const sameBtn = lastReps !== null
             ? `<button type="button" class="btn-same" data-set="${i}">同</button>`
-            : '';
+            : '<span class="btn-same-spacer" aria-hidden="true"></span>';
         return `
             <div class="set-input-row">
                 <label>セット${i + 1}</label>
@@ -37,31 +53,24 @@ function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
 }
 
 function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
-    const lastRecord = storage.getLastRecord(exercise.name, currentSessionDateStr());
+    const lastRecord = storage.getLastRecord(exercise.name, currentSessionDateStr(), dayIndex);
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
-    const lastIsPerSetWeight = lastRecord?.perSetWeight;
     const step = exercise.weightStep ?? 2.5;
     const suggestedReps = parseRepsRangeLower(exercise.repsRange);
 
     return Array.from({ length: setCount }, (_, i) => {
-        let lastWeight = '';
-        let lastReps = null;
-        if (lastRecord?.sets?.[i] !== undefined) {
-            const entry = lastRecord.sets[i];
-            if (lastIsPerSetWeight && entry && typeof entry === 'object') {
-                lastWeight = entry.weight ?? '';
-                if (entry.reps !== undefined && entry.reps !== '') lastReps = parseInt(entry.reps);
-            }
-        }
+        const entry = lastRecord?.sets?.[i];
+        const lastReps = extractLastRepsFromSetEntry(entry);
+        const lastWeight = extractLastWeightFromSetEntry(entry);
         const liveWeight = liveValues?.sets?.[i]?.weight ?? '';
         const liveReps = liveValues?.sets?.[i]?.reps ?? '';
         // 過去記録があればそれを、無ければ目標回数レンジの下限を初期値として使う
-        const defaultReps = lastReps !== null && !isNaN(lastReps) ? lastReps : suggestedReps;
+        const defaultReps = lastReps !== null ? lastReps : suggestedReps;
         const repsPlaceholder = defaultReps !== null ? `${defaultReps}` : '回数';
         const weightPlaceholder = lastWeight !== '' ? `${lastWeight}` : 'kg';
         const sameBtn = (lastReps !== null || lastWeight !== '')
             ? `<button type="button" class="btn-same" data-set="${i}">同</button>`
-            : '';
+            : '<span class="btn-same-spacer" aria-hidden="true"></span>';
         return `
             <div class="set-input-row set-input-row-weighted">
                 <label>セット${i + 1}</label>
@@ -900,7 +909,7 @@ class GymApp {
                 if (!diffSpan) return;
 
                 const currentValue = parseInt(e.target.value);
-                if (lastReps === null || isNaN(currentValue)) {
+                if (lastReps === null || Number.isNaN(lastReps) || Number.isNaN(currentValue)) {
                     diffSpan.textContent = '';
                     return;
                 }
