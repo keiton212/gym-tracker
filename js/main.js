@@ -24,17 +24,68 @@ function extractLastWeightFromSetEntry(entry) {
     return '';
 }
 
-// ユーザー指定の基準（seedBest）があればそれを優先し、無ければ過去最高を使う
+// セット番号ごとの過去最高を返す（前回セッションではない）。
+// seedBest がある場合は、履歴が無い／低いセットだけ底上げする（常に高い方を採用）。
 function resolveBestRecord(exercise) {
-    if (exercise?.seedBest && Array.isArray(exercise.seedBest.sets) && exercise.seedBest.sets.length > 0) {
+    const hist = storage.getBestSets(exercise.name, currentSessionDateStr());
+    const seed = (exercise?.seedBest && Array.isArray(exercise.seedBest.sets) && exercise.seedBest.sets.length > 0)
+        ? exercise.seedBest
+        : null;
+    if (!seed) return hist;
+    if (!hist) {
         return {
-            perSetWeight: !!exercise.seedBest.perSetWeight || !!exercise.perSetWeight,
-            sets: exercise.seedBest.sets,
-            weight: exercise.seedBest.weight ?? exercise.weight ?? '',
-            setCount: exercise.seedBest.sets.length
+            perSetWeight: !!seed.perSetWeight || !!exercise.perSetWeight,
+            sets: seed.sets,
+            weight: seed.weight ?? exercise.weight ?? '',
+            setCount: seed.sets.length
         };
     }
-    return storage.getBestSets(exercise.name, currentSessionDateStr());
+
+    const maxLen = Math.max(hist.sets?.length || 0, seed.sets.length, 1);
+    const perSetWeight = !!hist.perSetWeight || !!seed.perSetWeight || !!exercise.perSetWeight;
+    const sets = [];
+    for (let i = 0; i < maxLen; i++) {
+        const h = hist.sets?.[i];
+        const s = seed.sets?.[i];
+        const hReps = extractLastRepsFromSetEntry(h);
+        const sReps = extractLastRepsFromSetEntry(s);
+        const bestReps = (hReps != null && sReps != null)
+            ? Math.max(hReps, sReps)
+            : (hReps ?? sReps);
+        const hWeight = extractLastWeightFromSetEntry(h);
+        const sWeight = extractLastWeightFromSetEntry(s);
+        const hW = hWeight !== '' ? parseFloat(hWeight) : NaN;
+        const sW = sWeight !== '' ? parseFloat(sWeight) : NaN;
+        let bestWeight = '';
+        if (!Number.isNaN(hW) && !Number.isNaN(sW)) bestWeight = String(Math.max(hW, sW));
+        else if (!Number.isNaN(hW)) bestWeight = String(hW);
+        else if (!Number.isNaN(sW)) bestWeight = String(sW);
+
+        if (perSetWeight) {
+            sets.push({
+                reps: bestReps != null ? String(bestReps) : '',
+                weight: bestWeight
+            });
+        } else {
+            sets.push(bestReps != null ? String(bestReps) : '');
+        }
+    }
+
+    const hShared = hist.weight !== '' ? parseFloat(hist.weight) : NaN;
+    const sShared = seed.weight != null && seed.weight !== '' ? parseFloat(seed.weight) : NaN;
+    let weight = hist.weight || '';
+    if (!Number.isNaN(hShared) && !Number.isNaN(sShared)) weight = String(Math.max(hShared, sShared));
+    else if (!Number.isNaN(sShared) && weight === '') weight = String(sShared);
+
+    return { perSetWeight, sets, weight, setCount: sets.length };
+}
+
+function formatSetBestLabel(bestReps, bestWeight) {
+    if (bestReps == null && (bestWeight === '' || bestWeight == null)) return '';
+    const parts = [];
+    if (bestWeight !== '' && bestWeight != null) parts.push(`${bestWeight}kg`);
+    if (bestReps != null) parts.push(`${bestReps}回`);
+    return `<span class="set-best-display" title="このセットの過去最高（前回記録ではない）">最高 ${parts.join(' ')}</span>`;
 }
 
 function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
@@ -50,12 +101,12 @@ function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
         const defaultReps = bestReps !== null ? bestReps : suggestedReps;
         const placeholder = defaultReps !== null ? `${defaultReps}` : '回数';
         const sameBtn = bestReps !== null
-            ? `<button type="button" class="btn-same" data-set="${i}" title="このセットの最高回数を入れる">最高</button>`
+            ? `<button type="button" class="btn-same" data-set="${i}" title="このセットの最高回数を入れる">入</button>`
             : '<span class="btn-same-spacer" aria-hidden="true"></span>';
         return `
             <div class="set-input-row">
-                <label>セット${i + 1}</label>
-                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${bestReps ?? ''}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${placeholder}" min="0" inputmode="numeric" title="比較基準: セット${i + 1}の最高回数">
+                <label class="set-label-with-best"><span>セット${i + 1}</span>${formatSetBestLabel(bestReps, '')}</label>
+                <input type="number" class="reps-input" data-set="${i}" data-best-reps="${bestReps ?? ''}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${placeholder}" min="0" inputmode="numeric" title="比較基準: セット${i + 1}の最高回数">
                 <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
                 <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
                 ${sameBtn}
@@ -82,15 +133,15 @@ function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
         const repsPlaceholder = defaultReps !== null ? `${defaultReps}` : '回数';
         const weightPlaceholder = bestWeight !== '' ? `${bestWeight}` : 'kg';
         const sameBtn = (bestReps !== null || bestWeight !== '')
-            ? `<button type="button" class="btn-same" data-set="${i}" title="このセットの最高を入れる">最高</button>`
+            ? `<button type="button" class="btn-same" data-set="${i}" title="このセットの最高を入れる">入</button>`
             : '<span class="btn-same-spacer" aria-hidden="true"></span>';
         return `
             <div class="set-input-row set-input-row-weighted">
-                <label>セット${i + 1}</label>
+                <label class="set-label-with-best"><span>セット${i + 1}</span>${formatSetBestLabel(bestReps, bestWeight)}</label>
                 <button type="button" class="btn-weight-step-set" data-set="${i}" data-delta="-${step}" aria-label="重量を減らす">−</button>
-                <input type="number" class="set-weight-input" data-set="${i}" data-last-weight="${bestWeight}" value="${escapeAttr(liveWeight)}" placeholder="${weightPlaceholder}" min="0" inputmode="decimal" title="比較基準: セット${i + 1}の最高重量">
+                <input type="number" class="set-weight-input" data-set="${i}" data-best-weight="${bestWeight}" value="${escapeAttr(liveWeight)}" placeholder="${weightPlaceholder}" min="0" inputmode="decimal" title="比較基準: セット${i + 1}の最高重量">
                 <button type="button" class="btn-weight-step-set" data-set="${i}" data-delta="${step}" aria-label="重量を増やす">＋</button>
-                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${bestReps ?? ''}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${repsPlaceholder}" min="0" inputmode="numeric" title="比較基準: セット${i + 1}の最高回数">
+                <input type="number" class="reps-input" data-set="${i}" data-best-reps="${bestReps ?? ''}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${repsPlaceholder}" min="0" inputmode="numeric" title="比較基準: セット${i + 1}の最高回数">
                 <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
                 <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
                 ${sameBtn}
@@ -873,12 +924,12 @@ class GymApp {
                 const repsInput = row.querySelector('.reps-input');
                 const weightInput = row.querySelector('.set-weight-input');
 
-                if (repsInput && repsInput.dataset.lastReps) {
-                    repsInput.value = repsInput.dataset.lastReps;
+                if (repsInput && repsInput.dataset.bestReps) {
+                    repsInput.value = repsInput.dataset.bestReps;
                     repsInput.dispatchEvent(new Event('input', { bubbles: true }));
                 }
-                if (weightInput && weightInput.dataset.lastWeight) {
-                    weightInput.value = weightInput.dataset.lastWeight;
+                if (weightInput && weightInput.dataset.bestWeight) {
+                    weightInput.value = weightInput.dataset.bestWeight;
                 }
             });
         });
@@ -903,9 +954,9 @@ class GymApp {
                 const repsInput = row.querySelector('.reps-input');
                 if (!repsInput) return;
 
-                const lastReps = repsInput.dataset.lastReps ? parseInt(repsInput.dataset.lastReps) : null;
+                const bestReps = repsInput.dataset.bestReps ? parseInt(repsInput.dataset.bestReps) : null;
                 const suggestedReps = repsInput.dataset.suggestedReps ? parseInt(repsInput.dataset.suggestedReps) : null;
-                const current = repsInput.value !== '' ? parseInt(repsInput.value) : (lastReps ?? suggestedReps ?? 0);
+                const current = repsInput.value !== '' ? parseInt(repsInput.value) : (bestReps ?? suggestedReps ?? 0);
                 const delta = parseInt(btn.dataset.delta);
                 const next = Math.max(0, (isNaN(current) ? 0 : current) + delta);
 
@@ -915,19 +966,20 @@ class GymApp {
         });
 
         container.querySelectorAll('.reps-input').forEach(input => {
-            const lastReps = input.dataset.lastReps ? parseInt(input.dataset.lastReps) : null;
+            // プラスマイナスは「前回」ではなく、そのセット番号の過去最高回数と比較する
+            const bestReps = input.dataset.bestReps ? parseInt(input.dataset.bestReps) : null;
 
             input.addEventListener('input', (e) => {
                 const diffSpan = e.target.parentElement.querySelector('.reps-diff');
                 if (!diffSpan) return;
 
                 const currentValue = parseInt(e.target.value);
-                if (lastReps === null || Number.isNaN(lastReps) || Number.isNaN(currentValue)) {
+                if (bestReps === null || Number.isNaN(bestReps) || Number.isNaN(currentValue)) {
                     diffSpan.textContent = '';
                     return;
                 }
 
-                const diff = currentValue - lastReps;
+                const diff = currentValue - bestReps;
                 if (diff > 0) {
                     diffSpan.textContent = `↑ +${diff}`;
                     diffSpan.style.color = '#10b981';
