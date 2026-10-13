@@ -780,6 +780,56 @@ button, input {
     text-align: right;
 }
 
+.reps-diff.diff-up {
+    color: #10b981;
+}
+
+.reps-diff.diff-down {
+    color: #ef4444;
+}
+
+.reps-diff.diff-even {
+    color: #9ca3af;
+}
+
+/* 灰色の数字＝前回の記録（値としては未入力） */
+.exercise-record input::placeholder {
+    color: #b0b6c0;
+    opacity: 1;
+}
+
+.last-record-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    background: #f9fafb;
+    border: 1px dashed #d1d5db;
+    border-radius: 6px;
+}
+
+.last-record-text {
+    font-size: 11px;
+    color: #6b7280;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.btn-fill-last {
+    background: white;
+    border: 1px solid #667eea;
+    color: #667eea;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 6px 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
 .set-input-row input {
     flex: 0 0 auto;
     width: 56px;
@@ -1251,91 +1301,234 @@ button, input {
     white-space: nowrap;
 }
 
-.volume-stats {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-bottom: 16px;
+.history-legend {
+    font-size: 11px;
+    color: #6b7280;
+    margin: 0;
 }
 
-.volume-stat-block {
-    background: #f3f4f6;
-    border-radius: 10px;
-    padding: 12px;
-}
-
-.history-trends {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.trend-card {
-    background: #f3f4f6;
-    border-radius: 10px;
-    padding: 12px;
-}
-
-.trend-title {
+.legend-up {
+    color: #047857;
     font-weight: bold;
-    color: #1f2937;
-    font-size: 13px;
+}
+
+.legend-best {
+    color: #d97706;
+    font-weight: bold;
+}
+
+.history-tables {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.history-exercise-card {
+    background: #f3f4f6;
+    border-radius: 10px;
+    padding: 12px;
+    min-width: 0;
+}
+
+.history-exercise-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     margin-bottom: 8px;
 }
 
-.trend-chart {
-    width: 100%;
-    height: 80px;
-    display: block;
+.history-exercise-title {
+    font-weight: bold;
+    color: #1f2937;
+    font-size: 14px;
 }
 
-.volume-chart {
-    width: 100%;
-    height: 90px;
-    display: block;
-}
-
-.chart-range-labels {
-    display: flex;
-    justify-content: space-between;
+.btn-edit-best {
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    color: #4f46e5;
     font-size: 11px;
-    color: #6b7280;
-    margin-top: 4px;
-}
-
-.chart-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 6px;
-}
-
-.chart-legend-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    color: #6b7280;
-}
-
-.chart-legend-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+    padding: 5px 8px;
+    white-space: nowrap;
+    cursor: pointer;
     flex-shrink: 0;
 }
 
-.chart-weight-hint {
-    font-size: 10px;
-    color: #9ca3af;
-    margin-top: 4px;
+.history-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
-.chart-empty {
+.history-table {
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 12px;
-    color: #9ca3af;
+    white-space: nowrap;
+}
+
+.history-table th,
+.history-table td {
+    padding: 5px 8px;
     text-align: center;
-    margin: 10px 0;
+    border-bottom: 1px solid #e5e7eb;
+    background: white;
+}
+
+.history-table thead th {
+    font-size: 11px;
+    color: #6b7280;
+    font-weight: 600;
+    background: #f9fafb;
+}
+
+.history-table .col-set {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    color: #6b7280;
+    font-size: 11px;
+    min-width: 28px;
+}
+
+.history-table tbody .col-set {
+    background: #f9fafb;
+}
+
+.history-table .cell-best {
+    background: #fef3c7;
+    border-right: 2px solid #fcd34d;
+}
+
+.history-table thead .cell-best {
+    color: #92400e;
+}
+
+.history-table td span {
+    display: block;
+    line-height: 1.25;
+}
+
+.cell-weight {
+    font-weight: bold;
+    color: #1f2937;
+}
+
+.cell-weight small {
+    font-weight: normal;
+    color: #6b7280;
+    margin-left: 1px;
+}
+
+.cell-reps,
+.cell-reps-only {
+    color: #374151;
+}
+
+.history-table td.cell-up {
+    background: #d1fae5;
+}
+
+.history-table td.cell-down .cell-reps,
+.history-table td.cell-down .cell-weight {
+    color: #b91c1c;
+}
+
+.history-table td.cell-is-best::after {
+    content: '★';
+    display: block;
+    font-size: 9px;
+    color: #d97706;
+    line-height: 1;
+}
+
+.history-table .cell-empty {
+    color: #d1d5db;
+}
+
+.best-editor {
+    background: white;
+    border: 1px solid #c7d2fe;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.best-editor-help {
+    font-size: 11px;
+    color: #6b7280;
+    margin: 0 0 8px;
+}
+
+.best-editor-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.best-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.best-editor-label {
+    min-width: 48px;
+    color: #6b7280;
+    font-size: 12px;
+}
+
+.best-editor-row input {
+    width: 64px;
+    padding: 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 16px;
+}
+
+.best-editor-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.best-editor-actions button {
+    flex: 1 1 auto;
+    padding: 8px 10px;
+    font-size: 13px;
+    margin: 0;
+}
+
+.history-sessions-details {
+    background: #f9fafb;
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+
+.history-sessions-details summary {
+    font-size: 13px;
+    color: #4b5563;
+    cursor: pointer;
+}
+
+.history-sessions-details[open] summary {
+    margin-bottom: 10px;
+}
+
+.history-sessions-details #historySessions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.history-lifetime {
+    font-size: 12px;
+    color: #6b7280;
+    text-align: center;
+    margin: 0;
 }
 
 .history-exercise-reps {

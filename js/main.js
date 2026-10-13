@@ -6,107 +6,68 @@ function currentSessionDateStr() {
         : `${app.sessionDate.getFullYear()}-${String(app.sessionDate.getMonth() + 1).padStart(2, '0')}-${String(app.sessionDate.getDate()).padStart(2, '0')}`;
 }
 
-function extractLastRepsFromSetEntry(entry) {
-    if (entry == null || entry === '') return null;
-    if (typeof entry === 'object') {
-        if (entry.reps === undefined || entry.reps === '') return null;
-        const n = parseInt(entry.reps, 10);
-        return Number.isNaN(n) ? null : n;
-    }
-    const n = parseInt(entry, 10);
-    return Number.isNaN(n) ? null : n;
+function numOrEmpty(value) {
+    return value === null || value === undefined || Number.isNaN(value) ? '' : String(value);
 }
 
-function extractLastWeightFromSetEntry(entry) {
-    if (entry && typeof entry === 'object' && entry.weight !== undefined && entry.weight !== '') {
-        return entry.weight;
-    }
-    return '';
-}
-
-// セット番号ごとの過去最高を返す（前回セッションではない）。
-// seedBest がある場合は、履歴が無い／低いセットだけ底上げする（常に高い方を採用）。
-function resolveBestRecord(exercise) {
-    const hist = storage.getBestSets(exercise.name, currentSessionDateStr());
-    const seed = (exercise?.seedBest && Array.isArray(exercise.seedBest.sets) && exercise.seedBest.sets.length > 0)
-        ? exercise.seedBest
+// 種目（メイン/代替それぞれ）の入力フォーム用の参照値をまとめる。
+// - last: 前回の記録（灰色のプレースホルダーと「前回を入れる」ボタン用。同じ曜日を優先）
+// - best: セット番号ごとの最高記録（重量優先。比較の ↑↓ 表示用）
+// 種目名ごとに独立して引くので、同じメニュー枠の別種目と値が混ざらない。
+function getExerciseReference(dayIndex, exercise) {
+    const sessionDateStr = currentSessionDateStr();
+    const last = exercise.name ? storage.getLastRecord(exercise.name, sessionDateStr, dayIndex, true) : null;
+    const lastPairs = recordSetPairs(last);
+    const lastShared = parseSharedWeight(last) ?? lastPairs.find(p => p.weight != null)?.weight ?? null;
+    const menuWeight = exercise.weight !== undefined && exercise.weight !== '' && !Number.isNaN(parseFloat(exercise.weight))
+        ? parseFloat(exercise.weight)
         : null;
-    if (!seed) return hist;
-    if (!hist) {
-        return {
-            perSetWeight: !!seed.perSetWeight || !!exercise.perSetWeight,
-            sets: seed.sets,
-            weight: seed.weight ?? exercise.weight ?? '',
-            setCount: seed.sets.length
-        };
-    }
-
-    const maxLen = Math.max(hist.sets?.length || 0, seed.sets.length, 1);
-    const perSetWeight = !!hist.perSetWeight || !!seed.perSetWeight || !!exercise.perSetWeight;
-    const sets = [];
-    for (let i = 0; i < maxLen; i++) {
-        const h = hist.sets?.[i];
-        const s = seed.sets?.[i];
-        const hReps = extractLastRepsFromSetEntry(h);
-        const sReps = extractLastRepsFromSetEntry(s);
-        const bestReps = (hReps != null && sReps != null)
-            ? Math.max(hReps, sReps)
-            : (hReps ?? sReps);
-        const hWeight = extractLastWeightFromSetEntry(h);
-        const sWeight = extractLastWeightFromSetEntry(s);
-        const hW = hWeight !== '' ? parseFloat(hWeight) : NaN;
-        const sW = sWeight !== '' ? parseFloat(sWeight) : NaN;
-        let bestWeight = '';
-        if (!Number.isNaN(hW) && !Number.isNaN(sW)) bestWeight = String(Math.max(hW, sW));
-        else if (!Number.isNaN(hW)) bestWeight = String(hW);
-        else if (!Number.isNaN(sW)) bestWeight = String(sW);
-
-        if (perSetWeight) {
-            sets.push({
-                reps: bestReps != null ? String(bestReps) : '',
-                weight: bestWeight
-            });
-        } else {
-            sets.push(bestReps != null ? String(bestReps) : '');
-        }
-    }
-
-    const hShared = hist.weight !== '' ? parseFloat(hist.weight) : NaN;
-    const sShared = seed.weight != null && seed.weight !== '' ? parseFloat(seed.weight) : NaN;
-    let weight = hist.weight || '';
-    if (!Number.isNaN(hShared) && !Number.isNaN(sShared)) weight = String(Math.max(hShared, sShared));
-    else if (!Number.isNaN(sShared) && weight === '') weight = String(sShared);
-
-    return { perSetWeight, sets, weight, setCount: sets.length };
+    return {
+        last,
+        lastDate: last?.date || null,
+        lastPairs,
+        // 共通重量の初期表示：前回の重量 → 無ければメニューの重量
+        fallbackWeight: lastShared ?? menuWeight,
+        best: exercise.name ? (storage.getBestSetPairs(exercise.name, sessionDateStr) || []) : []
+    };
 }
 
-function formatSetBestLabel(bestReps, bestWeight) {
-    if (bestReps == null && (bestWeight === '' || bestWeight == null)) return '';
-    const parts = [];
-    if (bestWeight !== '' && bestWeight != null) parts.push(`${bestWeight}kg`);
-    if (bestReps != null) parts.push(`${bestReps}回`);
-    return `<span class="set-best-display" title="このセットの過去最高（前回記録ではない）">最高 ${parts.join(' ')}</span>`;
+function formatSetBestLabel(best) {
+    if (!best || best.reps == null) return '';
+    const text = best.weight != null ? `${best.weight}kg ${best.reps}回` : `${best.reps}回`;
+    return `<span class="set-best-display" title="このセットの最高記録（重量優先）">最高 ${text}</span>`;
 }
 
-function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
-    const bestRecord = resolveBestRecord(exercise);
+function buildLastRecordRowHTML(ref) {
+    if (!ref.last || ref.lastPairs.every(p => p.reps == null)) return '';
+    const date = new Date(`${ref.lastDate}T00:00:00`);
+    const summary = ref.lastPairs.filter(p => p.reps != null).map(formatSetPair).join(' / ');
+    return `
+        <div class="last-record-row">
+            <span class="last-record-text">前回 ${formatMonthDay(date)}：${escapeAttr(summary)}</span>
+            <button type="button" class="btn-fill-last">前回を入れる</button>
+        </div>
+    `;
+}
+
+function buildNormalSetInputsHTML(dayIndex, exercise, liveValues, ref) {
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const suggestedReps = parseRepsRangeLower(exercise.repsRange);
 
     return Array.from({ length: setCount }, (_, i) => {
-        const entry = bestRecord?.sets?.[i];
-        const bestReps = extractLastRepsFromSetEntry(entry);
+        const best = ref.best[i] || null;
+        const lastReps = ref.lastPairs[i]?.reps ?? null;
         const liveReps = liveValues?.sets?.[i]?.reps ?? '';
-        // セットごとの最高回数があればそれを、無ければ目標回数レンジの下限を初期値として使う
-        const defaultReps = bestReps !== null ? bestReps : suggestedReps;
+        // 灰色の表示は前回の回数（無ければ目標回数レンジの下限）。値そのものは空のまま
+        const defaultReps = lastReps ?? suggestedReps;
         const placeholder = defaultReps !== null ? `${defaultReps}` : '回数';
-        const sameBtn = bestReps !== null
-            ? `<button type="button" class="btn-same" data-set="${i}" title="このセットの最高回数を入れる">入</button>`
+        const sameBtn = lastReps !== null
+            ? `<button type="button" class="btn-same" data-set="${i}" title="このセットに前回の記録を入れる">入</button>`
             : '<span class="btn-same-spacer" aria-hidden="true"></span>';
         return `
-            <div class="set-input-row">
-                <label class="set-label-with-best"><span>セット${i + 1}</span>${formatSetBestLabel(bestReps, '')}</label>
-                <input type="number" class="reps-input" data-set="${i}" data-best-reps="${bestReps ?? ''}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${placeholder}" min="0" inputmode="numeric" title="比較基準: セット${i + 1}の最高回数">
+            <div class="set-input-row" data-best-weight="${numOrEmpty(best?.weight)}" data-best-reps="${numOrEmpty(best?.reps)}">
+                <label class="set-label-with-best"><span>セット${i + 1}</span>${formatSetBestLabel(best)}</label>
+                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${numOrEmpty(lastReps)}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${placeholder}" min="0" inputmode="numeric">
                 <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
                 <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
                 ${sameBtn}
@@ -116,32 +77,31 @@ function buildNormalSetInputsHTML(dayIndex, exercise, liveValues) {
     }).join('');
 }
 
-function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
-    const bestRecord = resolveBestRecord(exercise);
+function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues, ref) {
     const setCount = Math.max(1, parseInt(exercise.sets) || 1);
     const step = exercise.weightStep ?? 2.5;
     const suggestedReps = parseRepsRangeLower(exercise.repsRange);
 
     return Array.from({ length: setCount }, (_, i) => {
-        const entry = bestRecord?.sets?.[i];
-        const bestReps = extractLastRepsFromSetEntry(entry);
-        const bestWeight = extractLastWeightFromSetEntry(entry);
+        const best = ref.best[i] || null;
+        const lastPair = ref.lastPairs[i] || null;
+        const lastReps = lastPair?.reps ?? null;
+        const lastWeight = lastPair?.weight ?? ref.fallbackWeight;
         const liveWeight = liveValues?.sets?.[i]?.weight ?? '';
         const liveReps = liveValues?.sets?.[i]?.reps ?? '';
-        // セットごとの最高回数があればそれを、無ければ目標回数レンジの下限を初期値として使う
-        const defaultReps = bestReps !== null ? bestReps : suggestedReps;
+        const defaultReps = lastReps ?? suggestedReps;
         const repsPlaceholder = defaultReps !== null ? `${defaultReps}` : '回数';
-        const weightPlaceholder = bestWeight !== '' ? `${bestWeight}` : 'kg';
-        const sameBtn = (bestReps !== null || bestWeight !== '')
-            ? `<button type="button" class="btn-same" data-set="${i}" title="このセットの最高を入れる">入</button>`
+        const weightPlaceholder = lastWeight != null ? `${lastWeight}` : 'kg';
+        const sameBtn = lastReps !== null
+            ? `<button type="button" class="btn-same" data-set="${i}" title="このセットに前回の記録を入れる">入</button>`
             : '<span class="btn-same-spacer" aria-hidden="true"></span>';
         return `
-            <div class="set-input-row set-input-row-weighted">
-                <label class="set-label-with-best"><span>セット${i + 1}</span>${formatSetBestLabel(bestReps, bestWeight)}</label>
+            <div class="set-input-row set-input-row-weighted" data-best-weight="${numOrEmpty(best?.weight)}" data-best-reps="${numOrEmpty(best?.reps)}">
+                <label class="set-label-with-best"><span>セット${i + 1}</span>${formatSetBestLabel(best)}</label>
                 <button type="button" class="btn-weight-step-set" data-set="${i}" data-delta="-${step}" aria-label="重量を減らす">−</button>
-                <input type="number" class="set-weight-input" data-set="${i}" data-best-weight="${bestWeight}" value="${escapeAttr(liveWeight)}" placeholder="${weightPlaceholder}" min="0" inputmode="decimal" title="比較基準: セット${i + 1}の最高重量">
+                <input type="number" class="set-weight-input" data-set="${i}" data-last-weight="${numOrEmpty(lastWeight)}" value="${escapeAttr(liveWeight)}" placeholder="${weightPlaceholder}" min="0" inputmode="decimal">
                 <button type="button" class="btn-weight-step-set" data-set="${i}" data-delta="${step}" aria-label="重量を増やす">＋</button>
-                <input type="number" class="reps-input" data-set="${i}" data-best-reps="${bestReps ?? ''}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${repsPlaceholder}" min="0" inputmode="numeric" title="比較基準: セット${i + 1}の最高回数">
+                <input type="number" class="reps-input" data-set="${i}" data-last-reps="${numOrEmpty(lastReps)}" data-suggested-reps="${suggestedReps ?? ''}" value="${escapeAttr(liveReps)}" placeholder="${repsPlaceholder}" min="0" inputmode="numeric">
                 <button type="button" class="btn-reps-step" data-delta="-1" aria-label="回数を減らす">−</button>
                 <button type="button" class="btn-reps-step" data-delta="1" aria-label="回数を増やす">＋</button>
                 ${sameBtn}
@@ -151,9 +111,74 @@ function buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues) {
     }).join('');
 }
 
+// 入力欄が空のときの基準値（灰色で表示している前回の値）を数値で返す
+function inputFallbackNumber(input, datasetKey) {
+    if (!input) return null;
+    const raw = input.dataset[datasetKey];
+    const n = raw !== undefined && raw !== '' ? parseFloat(raw) : NaN;
+    return Number.isNaN(n) ? null : n;
+}
+
+// そのセット行の重量入力欄（セットごと重量ならその行、共通重量なら種目の重量欄）
+function weightInputForRow(row) {
+    return row.querySelector('.set-weight-input')
+        || row.closest('.exercise-body')?.querySelector('.weight-input')
+        || null;
+}
+
+// 最高記録との比較表示（重量優先）。重量が最高より重ければ新記録、同じ重量なら回数の差を出す。
+function updateRowDiff(row) {
+    const diffSpan = row.querySelector('.reps-diff');
+    if (!diffSpan) return;
+    const reps = parseInt(row.querySelector('.reps-input')?.value, 10);
+    const bestReps = row.dataset.bestReps !== '' ? parseInt(row.dataset.bestReps, 10) : NaN;
+    diffSpan.textContent = '';
+    diffSpan.className = 'reps-diff';
+    if (Number.isNaN(reps) || reps <= 0 || Number.isNaN(bestReps)) return;
+
+    const weightRaw = parseFloat(weightInputForRow(row)?.value);
+    const weight = Number.isNaN(weightRaw) ? 0 : weightRaw;
+    const bestWeightRaw = row.dataset.bestWeight !== '' ? parseFloat(row.dataset.bestWeight) : NaN;
+    const bestWeight = Number.isNaN(bestWeightRaw) ? 0 : bestWeightRaw;
+
+    if (weight > bestWeight) {
+        diffSpan.textContent = '🏆 新記録';
+        diffSpan.classList.add('diff-up');
+    } else if (weight === bestWeight) {
+        const diff = reps - bestReps;
+        if (diff > 0) {
+            diffSpan.textContent = `🏆 +${diff}`;
+            diffSpan.classList.add('diff-up');
+        } else if (diff < 0) {
+            diffSpan.textContent = `↓ ${diff}`;
+            diffSpan.classList.add('diff-down');
+        } else {
+            diffSpan.textContent = '＝';
+            diffSpan.classList.add('diff-even');
+        }
+    }
+}
+
+// セット行に前回の値を入れる（「入」「前回を入れる」ボタン用）。空欄のところだけ埋める場合は onlyEmpty
+function fillRowFromLast(row, { onlyEmpty = false } = {}) {
+    const repsInput = row.querySelector('.reps-input');
+    const lastReps = inputFallbackNumber(repsInput, 'lastReps');
+    if (lastReps === null) return false;
+    if (!onlyEmpty || repsInput.value === '') repsInput.value = lastReps;
+    const weightInput = weightInputForRow(row);
+    const lastWeight = inputFallbackNumber(weightInput, 'lastWeight');
+    if (weightInput && lastWeight !== null && (weightInput.value === '' || (!onlyEmpty && weightInput.classList.contains('set-weight-input')))) {
+        weightInput.value = lastWeight;
+    }
+    return true;
+}
 function buildExerciseBodyHTML(dayIndex, exercise, liveValues) {
+    const ref = getExerciseReference(dayIndex, exercise);
+    const lastRow = buildLastRecordRowHTML(ref);
+
     if (exercise.perSetWeight) {
         return `
+            ${lastRow}
             <div class="exercise-record-info">
                 <div>セット数:
                     <button type="button" class="btn-sets-step" data-delta="-1" aria-label="セット数を減らす">−</button>
@@ -165,18 +190,21 @@ function buildExerciseBodyHTML(dayIndex, exercise, liveValues) {
                 <input type="checkbox" class="per-set-weight-checkbox" checked> セットごとに重量を変える
             </label>
             <div class="set-inputs">
-                ${buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues)}
+                ${buildPerSetWeightInputsHTML(dayIndex, exercise, liveValues, ref)}
             </div>
         `;
     }
 
     const step = exercise.weightStep ?? 2.5;
-    const weightValue = liveValues?.sharedWeight ?? exercise.weight;
+    // 重量も初期値は空欄。前回の重量（無ければメニューの重量）を灰色で表示する
+    const weightValue = liveValues?.sharedWeight ?? '';
+    const weightPlaceholder = ref.fallbackWeight != null ? `${ref.fallbackWeight}` : 'kg';
     return `
+        ${lastRow}
         <div class="exercise-record-info">
             <div>重量:
                 <button type="button" class="btn-weight-step" data-delta="-${step}" aria-label="重量を減らす">−</button>
-                <input type="number" class="weight-input" value="${escapeAttr(weightValue)}" min="0" inputmode="decimal">
+                <input type="number" class="weight-input" value="${escapeAttr(weightValue)}" data-last-weight="${numOrEmpty(ref.fallbackWeight)}" placeholder="${weightPlaceholder}" min="0" inputmode="decimal">
                 <button type="button" class="btn-weight-step" data-delta="${step}" aria-label="重量を増やす">＋</button>
             kg</div>
             <div>セット数:
@@ -189,7 +217,7 @@ function buildExerciseBodyHTML(dayIndex, exercise, liveValues) {
             <input type="checkbox" class="per-set-weight-checkbox"> セットごとに重量を変える
         </label>
         <div class="set-inputs">
-            ${buildNormalSetInputsHTML(dayIndex, exercise, liveValues)}
+            ${buildNormalSetInputsHTML(dayIndex, exercise, liveValues, ref)}
         </div>
     `;
 }
@@ -452,7 +480,7 @@ class GymApp {
 
     clearVoiceDraft(names = []) {
         if (!names.length) return;
-        const draft = storage.getDraft(this.currentDayIndex) || {};
+        const draft = storage.getDraft(this.currentDayIndex, currentSessionDateStr()) || {};
         let changed = false;
         for (const name of names) {
             if (Object.hasOwn(draft, name)) {
@@ -461,14 +489,14 @@ class GymApp {
             }
         }
         if (!changed) return;
-        storage.saveDraft(this.currentDayIndex, draft);
+        storage.saveDraft(this.currentDayIndex, draft, currentSessionDateStr());
         this.renderExerciseList(this.currentDayIndex);
         this.autoSaveRecord();
     }
 
     mergeActiveScreenIntoDraft() {
         if (!document.querySelector('#exerciseList .exercise-record')) return;
-        const draft = storage.getDraft(this.currentDayIndex) || {};
+        const draft = storage.getDraft(this.currentDayIndex, currentSessionDateStr()) || {};
         document.querySelectorAll('#exerciseList .exercise-record').forEach(card => {
             const activeVariant = card.querySelector('.exercise-variant.active');
             const name = card.querySelector('.exercise-choice-btn.active')?.dataset.choice
@@ -487,7 +515,7 @@ class GymApp {
                     : (row.querySelector('.reps-input')?.value || ''))
             };
         });
-        storage.saveDraft(this.currentDayIndex, draft);
+        storage.saveDraft(this.currentDayIndex, draft, currentSessionDateStr());
     }
 
     activateExerciseVariant(name) {
@@ -517,7 +545,7 @@ class GymApp {
         }
 
         const dayIndex = this.currentDayIndex;
-        const draft = storage.getDraft(dayIndex) || {};
+        const draft = storage.getDraft(dayIndex, currentSessionDateStr()) || {};
         const activated = [];
         let needsFullRender = false;
 
@@ -558,7 +586,7 @@ class GymApp {
             activated.push(name);
         }
 
-        storage.saveDraft(dayIndex, draft);
+        storage.saveDraft(dayIndex, draft, currentSessionDateStr());
 
         if (needsFullRender || !document.querySelector('#exerciseList .exercise-record')) {
             this.renderExerciseList(dayIndex);
@@ -641,7 +669,7 @@ class GymApp {
         }
 
         this.renderExerciseList(dayIndex);
-        const draft = storage.getDraft(dayIndex);
+        const draft = this.getRestorableInput(dayIndex);
         let notice = document.getElementById('draftNotice');
         if (!notice) {
             notice = document.createElement('div');
@@ -649,8 +677,20 @@ class GymApp {
             notice.className = 'draft-notice';
             document.getElementById('exerciseList')?.before(notice);
         }
-        notice.textContent = draft ? '✅ 前回の入力を復元しました（入力中は自動保存）' : '💾 入力内容は自動保存されます';
+        notice.textContent = draft
+            ? '✅ この日の入力を復元しました（入力中は自動保存）'
+            : '💾 入力内容は自動保存されます。灰色の数字は前回の記録です（「前回を入れる」で反映）';
         notice.hidden = false;
+    }
+
+    // 画面に復元する入力：この記録日の下書き → 無ければこの記録日に保存済みの記録。
+    // 別の日の下書きは復元しない（先週の値が今週に入ってしまうのを防ぐ）
+    getRestorableInput(dayIndex) {
+        const dateStr = currentSessionDateStr() || toLocalDateStr();
+        const draft = storage.getDraft(dayIndex, dateStr);
+        if (draft && Object.keys(draft).length > 0) return draft;
+        const saved = storage.getRecords()[dateStr]?.[dayIndex];
+        return saved && Object.keys(saved).length > 0 ? saved : null;
     }
 
     renderExerciseList(dayIndex) {
@@ -674,7 +714,7 @@ class GymApp {
 
         container.innerHTML = exercises.map((ex, idx) => buildExerciseCardHTML(dayIndex, ex, idx === 0, idx === exercises.length - 1)).join('');
 
-        const draft = storage.getDraft(dayIndex);
+        const draft = this.getRestorableInput(dayIndex);
         if (draft) {
             // 下書きは種目名キーで持っているので、対応する種目（メイン/代替）のフォームだけに復元する
             container.querySelectorAll('.exercise-record .exercise-variant').forEach(variantEl => {
@@ -690,6 +730,19 @@ class GymApp {
                     if (w !== undefined && w !== '') input.value = w;
                 });
             });
+
+            // 代替種目の方を記録していた場合は、その種目を選択状態に戻す
+            container.querySelectorAll('.exercise-record').forEach(card => {
+                const variants = [...card.querySelectorAll('.exercise-variant')];
+                const hasInput = v => [...v.querySelectorAll('.set-inputs input')].some(input => input.value !== '');
+                const active = variants.find(v => v.classList.contains('active'));
+                if (!active || hasInput(active)) return;
+                const filled = variants.find(hasInput);
+                if (!filled) return;
+                variants.forEach(v => v.classList.toggle('active', v === filled));
+                card.querySelectorAll('.exercise-choice-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.choice === filled.dataset.variantName));
+            });
+            container.querySelectorAll('.set-input-row').forEach(updateRowDiff);
         }
 
         exercises.forEach(ex => {
@@ -831,20 +884,35 @@ class GymApp {
 
         const weightInput = bodyEl.querySelector('.weight-input');
         if (weightInput) {
+            const onSharedWeightChanged = () => {
+                bodyEl.querySelectorAll('.set-input-row').forEach(updateRowDiff);
+                this.saveDraftFromScreen();
+            };
+            weightInput.addEventListener('input', onSharedWeightChanged);
             weightInput.addEventListener('change', (e) => {
-                storage.updateExerciseVariantWeight(dayIndex, exerciseId, variantName, e.target.value);
+                if (e.target.value !== '') storage.updateExerciseVariantWeight(dayIndex, exerciseId, variantName, e.target.value);
             });
 
             bodyEl.querySelectorAll('.btn-weight-step').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const delta = parseFloat(btn.dataset.delta);
-                    const current = parseFloat(weightInput.value) || 0;
+                    // 空欄なら灰色で表示している前回の重量から増減する
+                    const current = weightInput.value !== '' ? (parseFloat(weightInput.value) || 0) : (inputFallbackNumber(weightInput, 'lastWeight') ?? 0);
                     const next = Math.max(0, Math.round((current + delta) * 100) / 100);
                     weightInput.value = next;
                     storage.updateExerciseVariantWeight(dayIndex, exerciseId, variantName, String(next));
+                    onSharedWeightChanged();
                 });
             });
         }
+
+        bodyEl.querySelector('.btn-fill-last')?.addEventListener('click', () => {
+            bodyEl.querySelectorAll('.set-input-row').forEach(row => {
+                fillRowFromLast(row, { onlyEmpty: true });
+                updateRowDiff(row);
+            });
+            this.saveDraftFromScreen();
+        });
 
         const setsInput = bodyEl.querySelector('.sets-input');
         const applySetsCount = (newCount) => {
@@ -918,19 +986,12 @@ class GymApp {
     attachSetInputListeners(container) {
         if (!container) return;
 
+        // 「入」：このセットに前回の記録（重量・回数）を入れる
         container.querySelectorAll('.btn-same').forEach(btn => {
             btn.addEventListener('click', () => {
                 const row = btn.closest('.set-input-row');
-                const repsInput = row.querySelector('.reps-input');
-                const weightInput = row.querySelector('.set-weight-input');
-
-                if (repsInput && repsInput.dataset.bestReps) {
-                    repsInput.value = repsInput.dataset.bestReps;
-                    repsInput.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-                if (weightInput && weightInput.dataset.bestWeight) {
-                    weightInput.value = weightInput.dataset.bestWeight;
-                }
+                if (!fillRowFromLast(row)) return;
+                row.querySelector('.reps-input')?.dispatchEvent(new Event('input', { bubbles: true }));
             });
         });
 
@@ -941,10 +1002,11 @@ class GymApp {
                 if (!weightInput) return;
 
                 const delta = parseFloat(btn.dataset.delta);
-                const current = parseFloat(weightInput.value) || 0;
+                const current = weightInput.value !== '' ? (parseFloat(weightInput.value) || 0) : (inputFallbackNumber(weightInput, 'lastWeight') ?? 0);
                 const next = Math.max(0, Math.round((current + delta) * 100) / 100);
 
                 weightInput.value = next;
+                weightInput.dispatchEvent(new Event('input', { bubbles: true }));
             });
         });
 
@@ -954,9 +1016,9 @@ class GymApp {
                 const repsInput = row.querySelector('.reps-input');
                 if (!repsInput) return;
 
-                const bestReps = repsInput.dataset.bestReps ? parseInt(repsInput.dataset.bestReps) : null;
-                const suggestedReps = repsInput.dataset.suggestedReps ? parseInt(repsInput.dataset.suggestedReps) : null;
-                const current = repsInput.value !== '' ? parseInt(repsInput.value) : (bestReps ?? suggestedReps ?? 0);
+                // 空欄なら灰色で表示している前回の回数（無ければ目標回数の下限）から増減する
+                const base = inputFallbackNumber(repsInput, 'lastReps') ?? inputFallbackNumber(repsInput, 'suggestedReps') ?? 0;
+                const current = repsInput.value !== '' ? parseInt(repsInput.value) : base;
                 const delta = parseInt(btn.dataset.delta);
                 const next = Math.max(0, (isNaN(current) ? 0 : current) + delta);
 
@@ -966,30 +1028,25 @@ class GymApp {
         });
 
         container.querySelectorAll('.reps-input').forEach(input => {
-            // プラスマイナスは「前回」ではなく、そのセット番号の過去最高回数と比較する
-            const bestReps = input.dataset.bestReps ? parseInt(input.dataset.bestReps) : null;
-
             input.addEventListener('input', (e) => {
-                const diffSpan = e.target.parentElement.querySelector('.reps-diff');
-                if (!diffSpan) return;
-
-                const currentValue = parseInt(e.target.value);
-                if (bestReps === null || Number.isNaN(bestReps) || Number.isNaN(currentValue)) {
-                    diffSpan.textContent = '';
-                    return;
+                const row = e.target.closest('.set-input-row');
+                // 回数を入れたのに重量が空欄なら、灰色で表示している重量でやったものとして入れる
+                const weightInput = weightInputForRow(row);
+                if (e.target.value !== '' && weightInput && weightInput.value === '') {
+                    const fallback = inputFallbackNumber(weightInput, 'lastWeight');
+                    if (fallback !== null) {
+                        weightInput.value = fallback;
+                        if (weightInput.classList.contains('weight-input')) {
+                            row.closest('.exercise-body')?.querySelectorAll('.set-input-row').forEach(updateRowDiff);
+                        }
+                    }
                 }
-
-                const diff = currentValue - bestReps;
-                if (diff > 0) {
-                    diffSpan.textContent = `↑ +${diff}`;
-                    diffSpan.style.color = '#10b981';
-                } else if (diff < 0) {
-                    diffSpan.textContent = `↓ ${diff}`;
-                    diffSpan.style.color = '#ef4444';
-                } else {
-                    diffSpan.textContent = '';
-                }
+                updateRowDiff(row);
             });
+        });
+
+        container.querySelectorAll('.set-weight-input').forEach(input => {
+            input.addEventListener('input', (e) => updateRowDiff(e.target.closest('.set-input-row')));
         });
 
         container.querySelectorAll('input').forEach(input => {
@@ -1012,15 +1069,22 @@ class GymApp {
                 sets: rows.map(row => perSet ? { weight: row.querySelector('.set-weight-input')?.value || '', reps: row.querySelector('.reps-input')?.value || '' } : (row.querySelector('.reps-input')?.value || ''))
             };
         });
-        storage.saveDraft(this.currentDayIndex, draft);
+        storage.saveDraft(this.currentDayIndex, draft, currentSessionDateStr());
         this.autoSaveRecord();
     }
 
     // 「終了」ボタンを押さなくても、入力があるたびに正式な記録として自動保存する
     autoSaveRecord() {
         const { exerciseRecords, hasAnyInput } = this.collectExerciseRecords();
-        if (!hasAnyInput) return;
-        storage.saveRecord(this.sessionDate || new Date(), this.currentDayIndex, exerciseRecords);
+        const date = this.sessionDate || new Date();
+        if (!hasAnyInput) {
+            // 入力を全部消した場合は、この日の記録も消す（空の記録が残らないように）
+            if (storage.getRecordForDay(date, this.currentDayIndex)) {
+                storage.deleteRecordForDate(toLocalDateStr(date), this.currentDayIndex);
+            }
+            return;
+        }
+        storage.saveRecord(date, this.currentDayIndex, exerciseRecords);
     }
 
     updateRestTimerUI(exerciseId, rt) {
@@ -1058,27 +1122,30 @@ class GymApp {
             const name = card.querySelector('.exercise-choice-btn.active')?.dataset.choice || card.querySelector('.exercise-name-input').value.trim();
             if (!name) return;
 
-            const isPerSetWeight = !!card.querySelector('.per-set-weight-checkbox')?.checked;
             const activeVariant = card.querySelector('.exercise-variant.active') || card;
+            const isPerSetWeight = !!activeVariant.querySelector('.per-set-weight-checkbox')?.checked;
 
+            // 何も入力していない種目（今日はやらなかった種目）は記録に含めない
             if (isPerSetWeight) {
                 const rows = activeVariant.querySelectorAll('.set-inputs .set-input-row');
                 const sets = [];
+                let filled = false;
                 rows.forEach(row => {
                     const weight = row.querySelector('.set-weight-input')?.value || '';
                     const reps = row.querySelector('.reps-input')?.value || '';
-                    if (weight !== '' || reps !== '') hasAnyInput = true;
+                    if (reps !== '') filled = true;
                     sets.push({ weight, reps });
                 });
+                if (!filled) return;
+                hasAnyInput = true;
                 exerciseRecords[name] = { perSetWeight: true, sets, setCount: rows.length };
             } else {
                 const weight = activeVariant.querySelector('.weight-input')?.value || '';
-                const setInputs = activeVariant.querySelectorAll('.set-inputs input[data-set]');
+                const setInputs = activeVariant.querySelectorAll('.set-inputs input.reps-input');
                 const sets = [];
-                setInputs.forEach(input => {
-                    if (input.value !== '') hasAnyInput = true;
-                    sets.push(input.value);
-                });
+                setInputs.forEach(input => sets.push(input.value));
+                if (!sets.some(v => v !== '')) return;
+                hasAnyInput = true;
                 exerciseRecords[name] = { weight, sets, setCount: setInputs.length };
             }
         });

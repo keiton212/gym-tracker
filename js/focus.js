@@ -68,6 +68,7 @@ class FocusMode {
             const next = Math.max(0, parseFloat(el.textContent) || 0);
 
             weightInput.value = next;
+            weightInput.dispatchEvent(new Event('input', { bubbles: true }));
             if (!isPerSetWeight) weightInput.dispatchEvent(new Event('change', { bubbles: true }));
             this.render();
         });
@@ -148,7 +149,7 @@ class FocusMode {
 
         // 保存されていた進捗（種目ID＋セット番号）が、並び替え後の新しいステップ列のどこに当たるかを探し直す。
         // 見つからない（種目が削除された等）場合は最初から。
-        const saved = storage.getFocusProgress(dayIndex);
+        const saved = storage.getFocusProgress(dayIndex, currentSessionDateStr());
         const resumeIndex = saved
             ? this.steps.findIndex(st => this.exercises[st.ei].id === saved.exerciseId && st.si === saved.setIndex)
             : -1;
@@ -190,8 +191,9 @@ class FocusMode {
         const repsInput = row.querySelector('.reps-input');
         const weightInput = isPerSetWeight ? row.querySelector('.set-weight-input') : variant.querySelector('.weight-input');
 
-        const repsVal = repsInput.value !== '' ? repsInput.value : (repsInput.dataset.bestReps || repsInput.dataset.suggestedReps || '0');
-        const weightVal = weightInput.value !== '' ? weightInput.value : (weightInput.dataset.bestWeight || '0');
+        // 未入力なら通常画面で灰色表示している前回の値を見せる
+        const repsVal = repsInput.value !== '' ? repsInput.value : (repsInput.dataset.lastReps || repsInput.dataset.suggestedReps || '0');
+        const weightVal = weightInput.value !== '' ? weightInput.value : (weightInput.dataset.lastWeight || '0');
 
         document.getElementById('focusExerciseName').textContent = ex.name || '種目';
         const choices = ex.choiceNames && ex.choiceNames.length ? ex.choiceNames : [ex.name, ...(ex.alternatives || [])].filter(Boolean);
@@ -314,14 +316,14 @@ class FocusMode {
         const repsInput = row.querySelector('.reps-input');
         const weightInput = isPerSetWeight ? row.querySelector('.set-weight-input') : variant.querySelector('.weight-input');
 
-        // 未入力のまま完了した場合は、そのセットの最高値（無ければ目標回数レンジの下限）を今回の記録として確定させる
-        if (repsInput.value === '' && (repsInput.dataset.bestReps || repsInput.dataset.suggestedReps)) {
-            repsInput.value = repsInput.dataset.bestReps || repsInput.dataset.suggestedReps;
-            repsInput.dispatchEvent(new Event('input', { bubbles: true }));
+        // 未入力のまま「次へ」を押した場合は、表示していた前回の値（無ければ目標回数レンジの下限）を今回の記録として確定させる
+        if (weightInput.value === '' && weightInput.dataset.lastWeight) {
+            weightInput.value = weightInput.dataset.lastWeight;
         }
-        if (isPerSetWeight && weightInput.value === '' && weightInput.dataset.bestWeight) {
-            weightInput.value = weightInput.dataset.bestWeight;
+        if (repsInput.value === '' && (repsInput.dataset.lastReps || repsInput.dataset.suggestedReps)) {
+            repsInput.value = repsInput.dataset.lastReps || repsInput.dataset.suggestedReps;
         }
+        repsInput.dispatchEvent(new Event('input', { bubbles: true }));
 
         const exerciseId = card.dataset.exerciseId;
 
@@ -351,7 +353,7 @@ class FocusMode {
 
     saveFocusProgress() {
         const step = this.steps[this.stepIndex];
-        storage.setFocusProgress(this.dayIndex, this.exercises[step.ei].id, step.si);
+        storage.setFocusProgress(this.dayIndex, this.exercises[step.ei].id, step.si, currentSessionDateStr());
     }
 
     toggleRest() {

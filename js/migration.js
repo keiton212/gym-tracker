@@ -843,3 +843,61 @@
         console.error('Migration v11 failed:', e);
     }
 })();
+
+// 最高記録の付け方の修正（重量と回数を別々の日から寄せ集めていたため 80kg×2 と 70kg×8 が 80kg×8 になっていた）。
+// 一旦すべての種目の最高記録を「最後にやった結果」（今日より前の直近の記録）に置き換える。
+// 以降は storage.getBestSetPairs が、その日より後の記録と重量優先で比較して更新していく。
+(function () {
+    const FLAG12 = 'gym_migration_best_reset_v12';
+    if (localStorage.getItem(FLAG12)) return;
+
+    try {
+        const today = toLocalDateStr();
+        const records = storage.getRecords();
+        const names = new Set();
+        Object.values(records).forEach(dayEntries => {
+            Object.values(dayEntries || {}).forEach(exercises => {
+                Object.keys(exercises || {}).forEach(name => name && names.add(name));
+            });
+        });
+
+        const bests = {};
+        names.forEach(name => {
+            const last = storage.getExerciseHistory(name).find(h => h.date < today);
+            if (!last) return;
+            const sets = recordSetPairs(last.data);
+            while (sets.length > 0 && sets[sets.length - 1].reps == null) sets.pop();
+            if (sets.length > 0) bests[name] = { sets, since: last.date };
+        });
+
+        localStorage.setItem(STORAGE_KEYS.PERSONAL_BESTS, JSON.stringify(bests));
+        localStorage.setItem(FLAG12, '1');
+    } catch (e) {
+        console.error('Migration v12 failed:', e);
+    }
+})();
+
+// メニューに埋め込まれた初期最高記録（seedBest）は、その種目の最高記録がまだ無いときだけ取り込み、メニューからは外す。
+// （以前は代替種目にもメイン種目の seedBest が使われ、記録が混ざっていた）
+// setup-menu.html で再登録された場合にも対応するため、毎回起動時に確認する。
+(function () {
+    try {
+        const menu = storage.getMenu();
+        const bests = storage.getPersonalBests();
+        let changed = false;
+        for (let day = 0; day < 7; day++) {
+            (menu[day]?.exercises || []).forEach(ex => {
+                if (!ex?.seedBest) return;
+                if (ex.name && !bests[ex.name]) {
+                    storage.setPersonalBestBase(ex.name, recordSetPairs(ex.seedBest), '');
+                    bests[ex.name] = true;
+                }
+                delete ex.seedBest;
+                changed = true;
+            });
+        }
+        if (changed) storage.setMenu(menu);
+    } catch (e) {
+        console.error('seedBest import failed:', e);
+    }
+})();

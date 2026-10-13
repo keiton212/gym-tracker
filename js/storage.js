@@ -6,6 +6,8 @@ const STORAGE_KEYS = {
     ,DRAFTS: 'gym_training_drafts', FOCUS_PROGRESS: 'gym_focus_progress'
     ,TRAINING_START_DATE: 'gym_training_start_date'
     ,INITIALIZED: 'gym_storage_initialized'
+    ,DRAFT_DATES: 'gym_training_draft_dates'
+    ,PERSONAL_BESTS: 'gym_personal_bests'
 };
 
 // 端末のローカル日付で YYYY-MM-DD を作る（UTCの toISOString だと日本時間の早朝に日付がずれる）
@@ -74,6 +76,34 @@ function parseSharedWeight(record) {
     if (!record || record.weight === undefined || record.weight === '') return null;
     const n = parseFloat(record.weight);
     return Number.isNaN(n) ? null : n;
+}
+
+// 1種目分の記録を「セットごとの {weight, reps}（数値 or null）」の配列に正規化する。
+// 共通重量の記録は、各セットの重量として共通重量を使う。
+function recordSetPairs(record) {
+    if (!record) return [];
+    const shared = parseSharedWeight(record);
+    return (record.sets || []).map(entry => {
+        const reps = parseRecordSetReps(entry);
+        const own = parseRecordSetWeight(entry);
+        return { weight: own != null ? own : shared, reps };
+    });
+}
+
+// 最高記録の比較：重量が重い方を優先し、同じ重量なら回数が多い方を上とする（80kg×5 > 75kg×10）。
+// 回数の無いセットは記録として扱わない。
+function isBetterSet(candidate, current) {
+    if (!candidate || candidate.reps == null || candidate.reps <= 0) return false;
+    if (!current || current.reps == null || current.reps <= 0) return true;
+    const cw = candidate.weight ?? 0;
+    const bw = current.weight ?? 0;
+    if (cw !== bw) return cw > bw;
+    return candidate.reps > current.reps;
+}
+
+function formatSetPair(pair) {
+    if (!pair || pair.reps == null) return '';
+    return pair.weight != null ? `${pair.weight}kg×${pair.reps}` : `${pair.reps}回`;
 }
 
 // 開発者本人の実際のトレーニング開始日（このデバイスに既存メニューがある＝本人の端末の場合の初期値として使う）
@@ -318,7 +348,7 @@ class Storage {
     // 前回の記録を取得する。
     // 同じ曜日の記録を優先し、無ければ種目名一致の直近記録にフォールバックする。
     // excludeDateStr（省略時は今日・ローカル日付）は除外する（トレーニング中に自動保存された今回分を「前回の記録」として拾わないため）
-    getLastRecord(exerciseName, excludeDateStr, preferredDayIndex) {
+    getLastRecord(exerciseName, excludeDateStr, preferredDayIndex, withRecordDate = false) {
         const records = this.getRecords();
         const allRecords = [];
         const excludeStr = excludeDateStr || toLocalDateStr();
@@ -329,7 +359,7 @@ class Storage {
             const dayEntries = records[dateStr];
             for (const dayIndex in dayEntries) {
                 for (const name of names) {
-                    if (dayEntries[dayIndex][name]) {
+                    if (dayEntries[dayIndex][name] && countFilledSets(dayEntries[dayIndex][name]) > 0) {
                         allRecords.push({
                             date: dateStr,
                             dayIndex: parseInt(dayIndex, 10),
@@ -354,85 +384,94 @@ class Storage {
             ? []
             : rank(allRecords.filter(r => r.dayIndex === preferredDayIndex));
         const ranked = preferred.length > 0 ? preferred : rank(allRecords);
-        return ranked[0].data;
+        return withRecordDate ? { ...ranked[0].data, date: ranked[0].date } : ranked[0].data;
     }
 
-    // 種目のセット別最高記録（回数）と、これまでの最高重量を返す。
-    // セット1の最高は過去のセット1同士、セット2の最高はセット2同士で比較する。
-    getBestSets(exerciseName, excludeDateStr) {
+    // その種目の記録が入っている日付一覧（新しい順）。aliases も含めて探す。
+    // 戻り値: [{ date, dayIndex, data }]（同じ日付に複数の曜日枠があれば入力の多い方）
+    getExerciseHistory(exerciseName, excludeDateStr) {
         const records = this.getRecords();
-        const excludeStr = excludeDateStr || toLocalDateStr();
-        const names = new Set(exerciseLookupNames(exerciseName));
-        const bestReps = [];
-        const bestWeights = [];
-        let bestSharedWeight = null;
-        let sawPerSet = false;
+        const names = exerciseLookupNames(exerciseName);
+        const byDate = {};
 
         for (const dateStr in records) {
-            if (dateStr === excludeStr) continue;
+            if (excludeDateStr && dateStr === excludeDateStr) continue;
             const dayEntries = records[dateStr];
             for (const dayIndex in dayEntries) {
                 for (const name of names) {
-                    const data = dayEntries[dayIndex][name];
+                    const data = dayEntries[dayIndex]?.[name];
                     if (!data) continue;
-
-                    const shared = parseSharedWeight(data);
-                    if (shared != null && (bestSharedWeight == null || shared > bestSharedWeight)) {
-                        bestSharedWeight = shared;
+                    const filled = countFilledSets(data);
+                    if (filled === 0) break;
+                    if (!byDate[dateStr] || filled > byDate[dateStr].filled) {
+                        byDate[dateStr] = { date: dateStr, dayIndex: parseInt(dayIndex, 10), data, filled };
                     }
-                    if (data.perSetWeight) sawPerSet = true;
-
-                    (data.sets || []).forEach((entry, i) => {
-                        const reps = parseRecordSetReps(entry);
-                        if (reps != null && (bestReps[i] == null || reps > bestReps[i])) {
-                            bestReps[i] = reps;
-                        }
-                        const w = parseRecordSetWeight(entry);
-                        if (w != null) {
-                            sawPerSet = true;
-                            if (bestWeights[i] == null || w > bestWeights[i]) bestWeights[i] = w;
-                            if (bestSharedWeight == null || w > bestSharedWeight) bestSharedWeight = w;
-                        }
-                    });
                     break;
                 }
             }
         }
 
-        if (bestReps.length === 0 && bestSharedWeight == null) return null;
-
-        const maxLen = Math.max(bestReps.length, bestWeights.length, 1);
-        const sets = [];
-        for (let i = 0; i < maxLen; i++) {
-            if (sawPerSet || bestWeights[i] != null) {
-                sets.push({
-                    reps: bestReps[i] != null ? String(bestReps[i]) : '',
-                    weight: bestWeights[i] != null ? String(bestWeights[i]) : ''
-                });
-            } else {
-                sets.push(bestReps[i] != null ? String(bestReps[i]) : '');
-            }
-        }
-
-        return {
-            perSetWeight: sawPerSet,
-            sets,
-            weight: bestSharedWeight != null ? String(bestSharedWeight) : '',
-            setCount: sets.length
-        };
+        return Object.values(byDate).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     }
 
-    // 種目の過去最高重量（共有重量 or セット重量の最大）を返す
-    getBestWeight(exerciseName, excludeDateStr) {
-        const best = this.getBestSets(exerciseName, excludeDateStr);
-        if (!best) return null;
-        if (best.weight !== '') return best.weight;
-        let max = null;
-        (best.sets || []).forEach(entry => {
-            const w = parseRecordSetWeight(entry);
-            if (w != null && (max == null || w > max)) max = w;
+    // 最高記録の基準値（移行時は直近の記録、手動編集時はユーザーの指定値）。
+    // { [種目名]: { sets: [{weight, reps}], since: 'YYYY-MM-DD' } }
+    // since より後の日付の記録だけが基準値と比較され、上回れば最高記録が更新される。
+    getPersonalBests() {
+        const data = this.readJson(STORAGE_KEYS.PERSONAL_BESTS, {});
+        return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+    }
+
+    setPersonalBestBase(exerciseName, sets, since) {
+        if (!exerciseName) return;
+        const all = this.getPersonalBests();
+        const clean = (sets || []).map(p => {
+            const w = p?.weight != null && p.weight !== '' ? parseFloat(p.weight) : NaN;
+            const r = p?.reps != null && p.reps !== '' ? parseInt(p.reps, 10) : NaN;
+            return { weight: Number.isNaN(w) ? null : w, reps: Number.isNaN(r) ? null : r };
         });
-        return max != null ? String(max) : null;
+        while (clean.length > 0 && clean[clean.length - 1].reps == null) clean.pop();
+        all[exerciseName] = { sets: clean, since: since || '' };
+        localStorage.setItem(STORAGE_KEYS.PERSONAL_BESTS, JSON.stringify(all));
+        this.notifyChanged();
+    }
+
+    // セット番号ごとの最高記録を返す。各セットの最高は「実際に同じセットで出した重量と回数の組」で、
+    // 重量優先で比較する（重量と回数を別々の日から寄せ集めない）。
+    // 戻り値: [{ weight, reps, date } | null]。何も無ければ null。
+    getBestSetPairs(exerciseName, excludeDateStr) {
+        if (!exerciseName) return null;
+        const base = this.getPersonalBests()[exerciseName];
+        const since = base?.since || '';
+        const best = [];
+
+        (base?.sets || []).forEach((pair, i) => {
+            if (pair && pair.reps != null) best[i] = { weight: pair.weight ?? null, reps: pair.reps, date: since || null };
+        });
+
+        this.getExerciseHistory(exerciseName, excludeDateStr).forEach(({ date, data }) => {
+            if (base && date <= since) return;
+            recordSetPairs(data).forEach((pair, i) => {
+                if (isBetterSet(pair, best[i])) best[i] = { ...pair, date };
+            });
+        });
+
+        if (best.length === 0) return null;
+        for (let i = 0; i < best.length; i++) if (!best[i]) best[i] = null;
+        return best;
+    }
+
+    // 旧API互換：{ perSetWeight, sets: [{weight, reps}], weight（最大重量）, setCount }
+    getBestSets(exerciseName, excludeDateStr) {
+        const pairs = this.getBestSetPairs(exerciseName, excludeDateStr || toLocalDateStr());
+        if (!pairs) return null;
+        const weights = pairs.filter(p => p && p.weight != null).map(p => p.weight);
+        return {
+            perSetWeight: new Set(weights).size > 1,
+            sets: pairs.map(p => ({ weight: p?.weight != null ? String(p.weight) : '', reps: p?.reps != null ? String(p.reps) : '' })),
+            weight: weights.length ? String(Math.max(...weights)) : '',
+            setCount: pairs.length
+        };
     }
 
     // 指定曜日の過去セッション一覧（新しい順）
@@ -484,15 +523,25 @@ class Storage {
         localStorage.setItem(STORAGE_KEYS.LAST_EXPORT_AT, String(timestamp));
     }
 
-    getDraft(dayIndex) {
+    // 下書きは「どの日付のトレーニングのものか」も保存し、別の日（翌週の同じ曜日など）には復元しない。
+    // （曜日だけで保存していた頃は「終了」を押さないと先週の入力が今週に黒字で入っていた）
+    getDraft(dayIndex, dateStr) {
         const drafts = this.readJson(STORAGE_KEYS.DRAFTS, {});
-        return drafts[dayIndex] || null;
+        const draft = drafts[dayIndex] || null;
+        if (!draft || !dateStr) return draft;
+        const dates = this.readJson(STORAGE_KEYS.DRAFT_DATES, {});
+        return dates[dayIndex] === dateStr ? draft : null;
     }
 
-    saveDraft(dayIndex, draft) {
+    saveDraft(dayIndex, draft, dateStr) {
         const drafts = this.readJson(STORAGE_KEYS.DRAFTS, {});
         drafts[dayIndex] = draft;
         localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts));
+        if (dateStr) {
+            const dates = this.readJson(STORAGE_KEYS.DRAFT_DATES, {});
+            dates[dayIndex] = dateStr;
+            localStorage.setItem(STORAGE_KEYS.DRAFT_DATES, JSON.stringify(dates));
+        }
         this.notifyChanged();
     }
 
@@ -500,21 +549,27 @@ class Storage {
         const drafts = this.readJson(STORAGE_KEYS.DRAFTS, {});
         delete drafts[dayIndex];
         localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts));
+        const dates = this.readJson(STORAGE_KEYS.DRAFT_DATES, {});
+        delete dates[dayIndex];
+        localStorage.setItem(STORAGE_KEYS.DRAFT_DATES, JSON.stringify(dates));
         this.notifyChanged();
     }
 
     // 進捗は「通し番号」ではなく種目ID＋セット番号で保存する。
     // 通し番号だと、集中モードを抜けた後に種目の並び替え・追加・削除をした場合に
     // 全く別の種目/セットを指してしまうため。
-    getFocusProgress(dayIndex) {
+    // 別の日（翌週の同じ曜日など）の進捗からは再開しない
+    getFocusProgress(dayIndex, dateStr) {
         const data = this.readJson(STORAGE_KEYS.FOCUS_PROGRESS, {});
         const entry = data[dayIndex];
-        return (entry && typeof entry === 'object' && entry.exerciseId) ? entry : null;
+        if (!entry || typeof entry !== 'object' || !entry.exerciseId) return null;
+        if (dateStr && entry.date !== dateStr) return null;
+        return entry;
     }
 
-    setFocusProgress(dayIndex, exerciseId, setIndex) {
+    setFocusProgress(dayIndex, exerciseId, setIndex, dateStr) {
         const data = this.readJson(STORAGE_KEYS.FOCUS_PROGRESS, {});
-        data[dayIndex] = { exerciseId, setIndex };
+        data[dayIndex] = { exerciseId, setIndex, date: dateStr || '' };
         localStorage.setItem(STORAGE_KEYS.FOCUS_PROGRESS, JSON.stringify(data));
         this.notifyChanged();
     }

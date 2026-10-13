@@ -237,13 +237,16 @@
             <p class="backup-help">記録は端末内に自動で世代保存されます。端末の故障・紛失にも備えるには、定期的に書き出したファイルをiCloud Driveなどへ保存してください。</p>
         </div>
 
-        <div id="historyVolumeStats" class="volume-stats"></div>
-
         <div id="historyTabs" class="tabs"></div>
 
         <div class="history-content">
-            <div id="historyTrends" class="history-trends"></div>
-            <div id="historySessions"></div>
+            <p class="history-legend">左が新しい記録です。<span class="legend-up">緑</span>＝前回より伸びた　<span class="legend-best">★</span>＝最高記録</p>
+            <div id="historyTables" class="history-tables"></div>
+            <details class="history-sessions-details">
+                <summary>日付ごとの記録（削除はこちら）</summary>
+                <div id="historySessions"></div>
+            </details>
+            <p id="historyLifetime" class="history-lifetime"></p>
         </div>
 
         <button class="btn-back btn-back-float" aria-label="ホームに戻る">←</button>
