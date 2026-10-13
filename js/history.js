@@ -60,7 +60,9 @@ class History {
         storage.getSessionsForDay(this.selectedDay).forEach(session => Object.keys(session.exercises || {}).forEach(add));
 
         const bests = storage.getPersonalBests();
-        return names.filter(name => bests[name] || storage.getExerciseHistory(name).length > 0);
+        const day = this.selectedDay;
+        return names.filter(name => bests[personalBestKey(name, day)]
+            || storage.getExerciseHistory(name, null, historyDayFilter(name, day)).length > 0);
     }
 
     // 種目ごとに「横＝日付（新しい順）、縦＝セット」の表で数字を並べ、伸びがひと目で分かるようにする。
@@ -88,8 +90,11 @@ class History {
     }
 
     buildExerciseTableHTML(name, idx) {
-        const history = storage.getExerciseHistory(name).slice(0, 40);
-        const best = storage.getBestSetPairs(name) || [];
+        // 曜日ごとに分ける種目はこの曜日の記録だけ、共通種目（サイドレイズ・腕）は全曜日の記録を並べる
+        const day = this.selectedDay;
+        const shared = isSharedAcrossDays(name);
+        const history = storage.getExerciseHistory(name, null, historyDayFilter(name, day)).slice(0, 40);
+        const best = storage.getBestSetPairs(name, null, day) || [];
         const sessions = history.map(h => ({ date: h.date, pairs: recordSetPairs(h.data) }));
         const setCount = Math.max(best.length, ...sessions.map(s => s.pairs.length), 1);
 
@@ -116,7 +121,7 @@ class History {
         return `
             <div class="history-exercise-card">
                 <div class="history-exercise-head">
-                    <span class="history-exercise-title">${escapeAttr(name)}</span>
+                    <span class="history-exercise-title">${escapeAttr(name)}<small class="history-scope">${shared ? '全曜日共通' : `${DAY_LABELS[day]}曜のみ`}</small></span>
                     <button type="button" class="btn-edit-best" data-idx="${idx}">${isEditing ? '閉じる' : '✏️ 最高記録を修正'}</button>
                 </div>
                 ${isEditing ? this.buildBestEditorHTML(name, idx, best, setCount, history[0]?.date) : ''}
@@ -168,13 +173,13 @@ class History {
         });
 
         editor.querySelector('.btn-best-reset')?.addEventListener('click', () => {
-            const last = storage.getExerciseHistory(name)[0];
+            const last = storage.getExerciseHistory(name, null, historyDayFilter(name, this.selectedDay))[0];
             if (!last) {
                 alert('この種目の記録がありません');
                 return;
             }
             if (!confirm(`${name}の最高記録を、直近（${this.formatDate(last.date)}）の記録に置き換えますか？`)) return;
-            storage.setPersonalBestBase(name, recordSetPairs(last.data), last.date);
+            storage.setPersonalBestBase(name, recordSetPairs(last.data), last.date, this.selectedDay);
             this.editingName = null;
             this.renderExerciseTables();
         });
@@ -185,7 +190,7 @@ class History {
                 reps: row.querySelector('.best-reps').value
             }));
             // 今ある記録はこの値で上書きし、これより後の記録から比較・更新する
-            storage.setPersonalBestBase(name, sets, latestDate);
+            storage.setPersonalBestBase(name, sets, latestDate, this.selectedDay);
             this.editingName = null;
             this.renderExerciseTables();
         });

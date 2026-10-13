@@ -877,6 +877,60 @@
     }
 })();
 
+// 最高記録を曜日ごとに分ける（同じベンチプレスでも火曜は重く、水曜は軽い、など）。
+// サイドレイズ・マシンサイドレイズ・腕（二頭/三頭）の種目は曜日をまたいで共通のまま（isSharedAcrossDays）。
+// 分ける種目は、曜日ごとに「その曜日で最後にやった記録」（今日より前）を最高記録の基準にする。
+(function () {
+    const FLAG13 = 'gym_migration_best_per_day_v13';
+    if (localStorage.getItem(FLAG13)) return;
+
+    try {
+        const today = toLocalDateStr();
+        const old = storage.getPersonalBests();
+        const records = storage.getRecords();
+        const menu = storage.getMenu();
+        const names = new Set();
+        Object.values(records).forEach(dayEntries => {
+            Object.values(dayEntries || {}).forEach(exercises => {
+                Object.keys(exercises || {}).forEach(name => name && names.add(name));
+            });
+        });
+        Object.keys(old).forEach(key => { if (!key.includes('@')) names.add(key); });
+
+        const next = {};
+        Object.keys(old).forEach(key => { if (key.includes('@')) next[key] = old[key]; });
+
+        names.forEach(name => {
+            if (isSharedAcrossDays(name)) {
+                if (old[name]) next[name] = old[name];
+                return;
+            }
+            let found = false;
+            for (let day = 0; day < 7; day++) {
+                const last = storage.getExerciseHistory(name, null, day).find(h => h.date < today);
+                if (!last) continue;
+                const sets = recordSetPairs(last.data);
+                while (sets.length > 0 && sets[sets.length - 1].reps == null) sets.pop();
+                if (sets.length === 0) continue;
+                next[personalBestKey(name, day)] = { sets, since: last.date };
+                found = true;
+            }
+            // 記録が無く初期値だけある種目は、メニューでその種目がある曜日に引き継ぐ
+            if (!found && old[name]) {
+                for (let day = 0; day < 7; day++) {
+                    const onDay = (menu[day]?.exercises || []).some(ex => ex.name === name || (ex.alternatives || []).includes(name));
+                    if (onDay) next[personalBestKey(name, day)] = old[name];
+                }
+            }
+        });
+
+        localStorage.setItem(STORAGE_KEYS.PERSONAL_BESTS, JSON.stringify(next));
+        localStorage.setItem(FLAG13, '1');
+    } catch (e) {
+        console.error('Migration v13 failed:', e);
+    }
+})();
+
 // メニューに埋め込まれた初期最高記録（seedBest）は、その種目の最高記録がまだ無いときだけ取り込み、メニューからは外す。
 // （以前は代替種目にもメイン種目の seedBest が使われ、記録が混ざっていた）
 // setup-menu.html で再登録された場合にも対応するため、毎回起動時に確認する。
@@ -888,9 +942,10 @@
         for (let day = 0; day < 7; day++) {
             (menu[day]?.exercises || []).forEach(ex => {
                 if (!ex?.seedBest) return;
-                if (ex.name && !bests[ex.name]) {
-                    storage.setPersonalBestBase(ex.name, recordSetPairs(ex.seedBest), '');
-                    bests[ex.name] = true;
+                const key = personalBestKey(ex.name, day);
+                if (ex.name && !bests[key]) {
+                    storage.setPersonalBestBase(ex.name, recordSetPairs(ex.seedBest), '', day);
+                    bests[key] = true;
                 }
                 delete ex.seedBest;
                 changed = true;

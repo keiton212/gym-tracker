@@ -48,6 +48,30 @@ const EXERCISE_NAME_ALIASES = {
     'マシンサイドレイズ': ['マシンサイド']
 };
 
+// 曜日をまたいで「同じ種目」として最高記録・前回の記録を共有する種目。
+// それ以外は、同じ名前でも曜日が違えば別種目として扱う（例：火曜は重いベンチ、水曜は軽いベンチ）。
+const SHARED_ACROSS_DAYS_NAMES = ['サイドレイズ', 'マシンサイドレイズ', 'ダンベルサイドレイズ', 'マシンサイド'];
+
+function isSharedAcrossDays(exerciseName) {
+    if (!exerciseName) return false;
+    if (SHARED_ACROSS_DAYS_NAMES.includes(exerciseName)) return true;
+    // 上腕二頭筋・三頭筋の種目（脚のレッグカール／レッグエクステンションは除く）
+    if (/レッグ/.test(exerciseName)) return false;
+    return /カール|エクステンション|プレスダウン|プッシュダウン|キックバック|トライセプス|フレンチプレス|スカルクラッシャー/.test(exerciseName);
+}
+
+// 最高記録の保存キー。曜日ごとに分ける種目は「種目名@曜日番号」
+function personalBestKey(exerciseName, dayIndex) {
+    if (isSharedAcrossDays(exerciseName) || dayIndex === undefined || dayIndex === null) return exerciseName;
+    return `${exerciseName}@${dayIndex}`;
+}
+
+// 記録を探すときに絞り込む曜日（共通種目なら null＝全曜日）
+function historyDayFilter(exerciseName, dayIndex) {
+    if (isSharedAcrossDays(exerciseName) || dayIndex === undefined || dayIndex === null) return null;
+    return Number(dayIndex);
+}
+
 function exerciseLookupNames(exerciseName) {
     const aliases = EXERCISE_NAME_ALIASES[exerciseName] || [];
     return [exerciseName, ...aliases];
@@ -382,14 +406,17 @@ class Storage {
 
         const preferred = preferredDayIndex === undefined || preferredDayIndex === null
             ? []
-            : rank(allRecords.filter(r => r.dayIndex === preferredDayIndex));
+            : rank(allRecords.filter(r => r.dayIndex === Number(preferredDayIndex)));
+        // 曜日ごとに別種目として扱う種目は、他の曜日の記録を前回として使わない（重さが違うため）
+        if (preferred.length === 0 && historyDayFilter(exerciseName, preferredDayIndex) !== null) return null;
         const ranked = preferred.length > 0 ? preferred : rank(allRecords);
         return withRecordDate ? { ...ranked[0].data, date: ranked[0].date } : ranked[0].data;
     }
 
     // その種目の記録が入っている日付一覧（新しい順）。aliases も含めて探す。
+    // onlyDayIndex を指定するとその曜日の記録だけ（曜日ごとに別種目として扱う場合）。
     // 戻り値: [{ date, dayIndex, data }]（同じ日付に複数の曜日枠があれば入力の多い方）
-    getExerciseHistory(exerciseName, excludeDateStr) {
+    getExerciseHistory(exerciseName, excludeDateStr, onlyDayIndex = null) {
         const records = this.getRecords();
         const names = exerciseLookupNames(exerciseName);
         const byDate = {};
@@ -398,6 +425,7 @@ class Storage {
             if (excludeDateStr && dateStr === excludeDateStr) continue;
             const dayEntries = records[dateStr];
             for (const dayIndex in dayEntries) {
+                if (onlyDayIndex !== null && onlyDayIndex !== undefined && Number(dayIndex) !== Number(onlyDayIndex)) continue;
                 for (const name of names) {
                     const data = dayEntries[dayIndex]?.[name];
                     if (!data) continue;
@@ -415,15 +443,16 @@ class Storage {
     }
 
     // 最高記録の基準値（移行時は直近の記録、手動編集時はユーザーの指定値）。
-    // { [種目名]: { sets: [{weight, reps}], since: 'YYYY-MM-DD' } }
+    // { [personalBestKey(種目名, 曜日)]: { sets: [{weight, reps}], since: 'YYYY-MM-DD' } }
     // since より後の日付の記録だけが基準値と比較され、上回れば最高記録が更新される。
     getPersonalBests() {
         const data = this.readJson(STORAGE_KEYS.PERSONAL_BESTS, {});
         return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
     }
 
-    setPersonalBestBase(exerciseName, sets, since) {
+    setPersonalBestBase(exerciseName, sets, since, dayIndex) {
         if (!exerciseName) return;
+        const key = personalBestKey(exerciseName, dayIndex);
         const all = this.getPersonalBests();
         const clean = (sets || []).map(p => {
             const w = p?.weight != null && p.weight !== '' ? parseFloat(p.weight) : NaN;
@@ -431,7 +460,7 @@ class Storage {
             return { weight: Number.isNaN(w) ? null : w, reps: Number.isNaN(r) ? null : r };
         });
         while (clean.length > 0 && clean[clean.length - 1].reps == null) clean.pop();
-        all[exerciseName] = { sets: clean, since: since || '' };
+        all[key] = { sets: clean, since: since || '' };
         localStorage.setItem(STORAGE_KEYS.PERSONAL_BESTS, JSON.stringify(all));
         this.notifyChanged();
     }
@@ -439,9 +468,10 @@ class Storage {
     // セット番号ごとの最高記録を返す。各セットの最高は「実際に同じセットで出した重量と回数の組」で、
     // 重量優先で比較する（重量と回数を別々の日から寄せ集めない）。
     // 戻り値: [{ weight, reps, date } | null]。何も無ければ null。
-    getBestSetPairs(exerciseName, excludeDateStr) {
+    // dayIndex を渡すと、曜日ごとに分ける種目はその曜日の記録・基準値だけで判定する。
+    getBestSetPairs(exerciseName, excludeDateStr, dayIndex) {
         if (!exerciseName) return null;
-        const base = this.getPersonalBests()[exerciseName];
+        const base = this.getPersonalBests()[personalBestKey(exerciseName, dayIndex)];
         const since = base?.since || '';
         const best = [];
 
@@ -449,7 +479,7 @@ class Storage {
             if (pair && pair.reps != null) best[i] = { weight: pair.weight ?? null, reps: pair.reps, date: since || null };
         });
 
-        this.getExerciseHistory(exerciseName, excludeDateStr).forEach(({ date, data }) => {
+        this.getExerciseHistory(exerciseName, excludeDateStr, historyDayFilter(exerciseName, dayIndex)).forEach(({ date, data }) => {
             if (base && date <= since) return;
             recordSetPairs(data).forEach((pair, i) => {
                 if (isBetterSet(pair, best[i])) best[i] = { ...pair, date };

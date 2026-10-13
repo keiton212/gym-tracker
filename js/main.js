@@ -11,7 +11,8 @@ function numOrEmpty(value) {
 }
 
 // 種目（メイン/代替それぞれ）の入力フォーム用の参照値をまとめる。
-// - last: 前回の記録（灰色のプレースホルダーと「前回を入れる」ボタン用。同じ曜日を優先）
+// - last: 前回の記録（灰色のプレースホルダーと「前回を入れる」ボタン用。
+//   曜日ごとに分ける種目は同じ曜日のみ、共通種目（サイドレイズ・腕）は同じ曜日を優先して全曜日から）
 // - best: セット番号ごとの最高記録（重量優先。比較の ↑↓ 表示用）
 // 種目名ごとに独立して引くので、同じメニュー枠の別種目と値が混ざらない。
 function getExerciseReference(dayIndex, exercise) {
@@ -28,7 +29,7 @@ function getExerciseReference(dayIndex, exercise) {
         lastPairs,
         // 共通重量の初期表示：前回の重量 → 無ければメニューの重量
         fallbackWeight: lastShared ?? menuWeight,
-        best: exercise.name ? (storage.getBestSetPairs(exercise.name, sessionDateStr) || []) : []
+        best: exercise.name ? (storage.getBestSetPairs(exercise.name, sessionDateStr, dayIndex) || []) : []
     };
 }
 

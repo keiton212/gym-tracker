@@ -1918,3 +1918,16 @@ body[data-voice-mode="recording"] .voice-panel {
         min-width: 100%;
     }
 }
+
+.history-scope {
+    margin-left: 6px;
+    font-size: 10px;
+    font-weight: normal;
+    color: #6b7280;
+    background: #e5e7eb;
+    border-radius: 4px;
+    padding: 1px 5px;
+    vertical-align: middle;
+    white-space: nowrap;
+    display: inline-block;
+}
